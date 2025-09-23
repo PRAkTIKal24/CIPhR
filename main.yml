@@ -1,0 +1,57 @@
+
+name: CIPhR Daily Research Ingestion
+
+on:
+  schedule:
+    # Runs every day at 00:00 UTC
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  ingest_research:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install uv and dependencies
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        export PATH="$HOME/.local/bin:$PATH"
+        uv venv
+        source .venv/bin/activate
+        uv pip install -r requirements.txt
+
+    - name: Run CIPhR tool
+      env:
+        FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      run: |
+        export PATH="$HOME/.local/bin:$PATH"
+        source .venv/bin/activate
+        python src/main.py --output_dir output --output_filename research_insights.md
+
+    - name: Upload research insights
+      uses: actions/upload-artifact@v4
+      with:
+        name: research-insights
+        path: output/research_insights.md
+
+    - name: Commit and push changes (if any)
+      run: |
+        git config user.name github-actions
+        git config user.email github-actions@github.com
+        git add output/research_insights.md
+        git commit -m "Update research insights table" || echo "No changes to commit"
+        git push
+      # This step requires a PAT with 'contents' scope if the workflow is not triggered by a push event
+      # or if the repository is protected. For simplicity, assuming direct push for now.
+      # In a real scenario, consider using a GitHub App or a dedicated bot user for commits.
+
+
