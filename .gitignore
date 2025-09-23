@@ -1,0 +1,6 @@
+.DS_Store
+__pycache__/
+output/
+shell_scripts/
+uv.lock
+#.env
