@@ -3,4 +3,4 @@ __pycache__/
 output/
 shell_scripts/
 uv.lock
-#.env
+.env
