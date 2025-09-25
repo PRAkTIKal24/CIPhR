@@ -1,7 +1,16 @@
+![GitHub Release-date](https://img.shields.io/github/release-date-pre/PRAkTIKal24/CIPhR?style=flat&color=blue)
+![Release-version](https://img.shields.io/github/v/tag/PRAkTIKal24/CIPhR?include_prereleases&label=latest%20release&color=blue)
+![GitHub repo size](https://img.shields.io/github/repo-size/PRAkTIKal24/CIPhR)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+![GitHub forks](https://img.shields.io/github/forks/PRAkTIKal24/CIPhR?style=flat&color=blue)
+
+[![Tests](https://github.com/PRAkTIKal24/CIPhR/actions/workflows/test.yml/badge.svg?event=push)](https://github.com/PRAkTIKal24/CIPhR/actions)
+
+
 
 # CIPhR: Crawl and Ingest Physics Research
 
-CIPhR is an automated tool designed to scrape particle physics research papers from arXiv, extract specific information using Large Language Model (LLM) analysis, and generate a living markdown table with research insights. This tool is built with Python, managed by `uv`, and designed for easy deployment with GitHub Actions.
+CIPhR is an automated tool designed to scrape particle physics research papers from arXiv, extract specific information using Large Language Model (LLM) analysis, and generate a living markdown table with research insights. This tool is built with Python, managed by `uv`, and designed for easy deployment with GitHub Actions that smartly append to output files without duplicating entries.
 
 ## Features
 
