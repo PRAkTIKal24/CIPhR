@@ -4,6 +4,7 @@ without requiring real API keys.
 """
 
 import os
+import tempfile
 from datetime import datetime
 
 from ciphr.ciphr import (
@@ -20,23 +21,35 @@ from ciphr.config.config import LLM_QUESTIONS
 
 def test_extract_questions():
     """Test extracting questions from existing markdown file."""
-    # Test on existing hepex.md
-    existing_questions = extract_questions_from_existing_file(
-        "/workspaces/CIPhR/output/hepex.md"
-    )
-    assert isinstance(existing_questions, list)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Create a test file with questions
+        test_file = os.path.join(temp_dir, "test_questions.md")
+        test_content = """Paper Title | arXiv Link | Question 1 | Question 2 | Question 3
+----------- | ---------- | ---------- | ---------- | ----------
+Some Paper | [Link](http://arxiv.org/abs/test) | Answer 1 | Answer 2 | Answer 3
+"""
+        with open(test_file, "w", encoding="utf-8") as f:
+            f.write(test_content)
 
-    # Test on newly created file
-    new_questions = extract_questions_from_existing_file(
-        "/workspaces/CIPhR/output/hepex_250925.md"
-    )
-    assert isinstance(new_questions, list)
+        # Test extracting questions from file
+        questions = extract_questions_from_existing_file(test_file)
+        assert isinstance(questions, list)
+        assert len(questions) == 3  # Should extract 3 questions
+        assert questions == ["Question 1", "Question 2", "Question 3"]
 
-    # Test on non-existent file
-    no_questions = extract_questions_from_existing_file(
-        "/workspaces/CIPhR/output/nonexistent.md"
-    )
-    assert no_questions == []
+        # Test on non-existent file
+        no_questions = extract_questions_from_existing_file(
+            os.path.join(temp_dir, "nonexistent.md")
+        )
+        assert no_questions == []
+
+        # Test with empty file
+        empty_file = os.path.join(temp_dir, "empty.md")
+        with open(empty_file, "w", encoding="utf-8") as f:
+            f.write("")
+
+        empty_questions = extract_questions_from_existing_file(empty_file)
+        assert empty_questions == []
 
 
 def test_questions_matching():
@@ -66,17 +79,42 @@ def test_date_suffix():
 
 def test_filename_generation():
     """Test output filename generation logic."""
-    test_output_dir = "/workspaces/CIPhR/output"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Test with non-existing file
+        filename1 = get_output_filename("nonexistent.md", temp_dir)
+        assert filename1 == "nonexistent.md"
 
-    # Test with existing file that has different questions
-    filename1 = get_output_filename("hepex.md", test_output_dir)
-    # Should create new filename with date suffix since questions don't match
-    assert filename1.startswith("hepex_")
-    assert filename1.endswith(".md")
+        # Create a test file with different questions than config
+        test_file = os.path.join(temp_dir, "test_different_questions.md")
+        different_content = """Paper Title | arXiv Link | Different Question 1 | Different Question 2
+----------- | ---------- | -------------------- | --------------------
+Some Paper | [Link](http://arxiv.org/abs/test) | Answer 1 | Answer 2
+"""
+        with open(test_file, "w", encoding="utf-8") as f:
+            f.write(different_content)
 
-    # Test with non-existing file
-    filename2 = get_output_filename("nonexistent.md", test_output_dir)
-    assert filename2 == "nonexistent.md"
+        # Test with existing file that has different questions
+        filename2 = get_output_filename("test_different_questions.md", temp_dir)
+        # Should create new filename with date suffix since questions don't match
+        assert filename2.startswith("test_different_questions_")
+        assert filename2.endswith(".md")
+
+        # Create a test file with matching questions
+        test_file_matching = os.path.join(temp_dir, "test_matching_questions.md")
+        matching_headers = ["Paper Title", "arXiv Link"] + [
+            q.replace("\n", " ") for q in LLM_QUESTIONS
+        ]
+        matching_content = " | ".join(matching_headers) + "\n"
+        matching_content += " | ".join(["-" * len(h) for h in matching_headers]) + "\n"
+        matching_content += "Test Paper | [Link](http://arxiv.org/abs/test) | Answer 1 | Answer 2 | Answer 3\n"
+
+        with open(test_file_matching, "w", encoding="utf-8") as f:
+            f.write(matching_content)
+
+        # Test with existing file that has matching questions
+        filename3 = get_output_filename("test_matching_questions.md", temp_dir)
+        # Should use original filename since questions match
+        assert filename3 == "test_matching_questions.md"
 
 
 def test_markdown_generation():
@@ -116,19 +154,35 @@ def test_markdown_generation():
 
 def test_complete_workflow_logic():
     """Test the complete workflow logic."""
-    test_output_dir = "/workspaces/CIPhR/output"
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Test with non-existing file
+        filename1 = get_output_filename("nonexistent.md", temp_dir)
+        file_path1 = os.path.join(temp_dir, filename1)
+        should_append1 = filename1 == "nonexistent.md" and os.path.exists(file_path1)
+        assert not should_append1  # File doesn't exist
+        assert filename1 == "nonexistent.md"
 
-    # Test logic for existing file with different questions
-    filename = get_output_filename("hepex.md", test_output_dir)
-    file_path = os.path.join(test_output_dir, filename)
-    should_append = filename == "hepex.md" and os.path.exists(file_path)
+        # Create a file with different questions
+        different_file = os.path.join(temp_dir, "different_questions.md")
+        different_content = """Paper Title | arXiv Link | Different Question 1 | Different Question 2
+----------- | ---------- | -------------------- | --------------------
+Some Paper | [Link](http://arxiv.org/abs/test) | Answer 1 | Answer 2
+"""
+        with open(different_file, "w", encoding="utf-8") as f:
+            f.write(different_content)
 
-    # Since hepex.md has different questions, should_append should be False
-    assert not should_append
+        # Test logic for existing file with different questions
+        filename2 = get_output_filename("different_questions.md", temp_dir)
+        file_path2 = os.path.join(temp_dir, filename2)
+        should_append2 = filename2 == "different_questions.md" and os.path.exists(
+            file_path2
+        )
 
-    # The filename should have a date suffix
-    assert filename != "hepex.md"
-    assert filename.startswith("hepex_")
+        # Since questions are different, should_append should be False
+        assert not should_append2
+        # The filename should have a date suffix
+        assert filename2 != "different_questions.md"
+        assert filename2.startswith("different_questions_")
 
 
 def test_config_questions_structure():
@@ -141,18 +195,48 @@ def test_config_questions_structure():
 
 def test_extract_existing_arxiv_links():
     """Test extracting arXiv links from existing markdown files."""
-    # Test with existing file
-    links = extract_existing_arxiv_links("/workspaces/CIPhR/output/hepex.md")
-    assert isinstance(links, set)
-    assert len(links) > 0  # Should find links in the existing file
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Create a test file with arXiv links
+        test_file = os.path.join(temp_dir, "test_with_links.md")
+        test_content = """Paper Title | arXiv Link | Question 1 | Question 2
+----------- | ---------- | ---------- | ----------
+Paper 1 | [Link](http://arxiv.org/abs/2024.12345) | Answer 1 | Answer 2
+Paper 2 | [Link](http://arxiv.org/abs/2024.67890) | Answer 3 | Answer 4
+Paper 3 | [Link](http://arxiv.org/abs/2024.11111) | Answer 5 | Answer 6
+"""
+        with open(test_file, "w", encoding="utf-8") as f:
+            f.write(test_content)
 
-    # All links should be arXiv URLs
-    for link in links:
-        assert link.startswith("http://arxiv.org/abs/")
+        # Test with file containing links
+        links = extract_existing_arxiv_links(test_file)
+        assert isinstance(links, set)
+        assert len(links) == 3  # Should find 3 links in the test file
 
-    # Test with non-existent file
-    no_links = extract_existing_arxiv_links("/workspaces/CIPhR/output/nonexistent.md")
-    assert no_links == set()
+        # All links should be arXiv URLs
+        expected_links = {
+            "http://arxiv.org/abs/2024.12345",
+            "http://arxiv.org/abs/2024.67890",
+            "http://arxiv.org/abs/2024.11111",
+        }
+        assert links == expected_links
+
+        # Test with non-existent file
+        no_links = extract_existing_arxiv_links(
+            os.path.join(temp_dir, "nonexistent.md")
+        )
+        assert no_links == set()
+
+        # Test with file without links
+        test_file_no_links = os.path.join(temp_dir, "no_links.md")
+        no_links_content = """Paper Title | arXiv Link | Question 1
+----------- | ---------- | ----------
+Paper 1 | No Link | Answer 1
+"""
+        with open(test_file_no_links, "w", encoding="utf-8") as f:
+            f.write(no_links_content)
+
+        empty_links = extract_existing_arxiv_links(test_file_no_links)
+        assert empty_links == set()
 
 
 def test_filter_new_papers():
@@ -193,31 +277,44 @@ def test_filter_new_papers():
 
 def test_duplicate_detection_integration():
     """Test the complete duplicate detection workflow."""
-    # Test with real existing file
-    existing_links = extract_existing_arxiv_links("/workspaces/CIPhR/output/hepex.md")
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Create a test file with existing links
+        test_file = os.path.join(temp_dir, "existing_papers.md")
+        test_content = """Paper Title | arXiv Link | Question 1
+----------- | ---------- | ----------
+Existing Paper 1 | [Link](http://arxiv.org/abs/2024.12345) | Answer 1
+Existing Paper 2 | [Link](http://arxiv.org/abs/2024.67890) | Answer 2
+"""
+        with open(test_file, "w", encoding="utf-8") as f:
+            f.write(test_content)
 
-    # Create mock papers with some duplicates
-    class MockPaper:
-        def __init__(self, title, entry_id):
-            self.title = title
-            self.entry_id = entry_id
+        # Extract existing links
+        existing_links = extract_existing_arxiv_links(test_file)
+        assert len(existing_links) == 2
 
-    # Use one existing link and one new link
-    test_papers = [
-        MockPaper("New Paper", "http://arxiv.org/abs/2024.99999"),
-    ]
+        # Create mock papers with some duplicates
+        class MockPaper:
+            def __init__(self, title, entry_id):
+                self.title = title
+                self.entry_id = entry_id
 
-    # Add existing link if we have any
-    if existing_links:
-        existing_link = list(existing_links)[0]
-        test_papers.append(MockPaper("Existing Paper", existing_link))
+        # Create test papers - some duplicating existing links, some new
+        test_papers = [
+            MockPaper("New Paper", "http://arxiv.org/abs/2024.99999"),  # New
+            MockPaper(
+                "Existing Paper 1", "http://arxiv.org/abs/2024.12345"
+            ),  # Duplicate
+            MockPaper("Another New Paper", "http://arxiv.org/abs/2024.88888"),  # New
+        ]
 
-    # Filter papers
-    filtered = filter_new_papers(test_papers, existing_links)
+        # Filter papers
+        filtered = filter_new_papers(test_papers, existing_links)
 
-    # Should filter out existing papers
-    if existing_links:
-        assert len(filtered) == 1  # Only the new paper
-        assert filtered[0].entry_id == "http://arxiv.org/abs/2024.99999"
-    else:
-        assert len(filtered) == len(test_papers)  # All papers if no existing links
+        # Should filter out existing papers
+        assert len(filtered) == 2  # Only the new papers
+        filtered_links = {paper.entry_id for paper in filtered}
+        expected_new_links = {
+            "http://arxiv.org/abs/2024.99999",
+            "http://arxiv.org/abs/2024.88888",
+        }
+        assert filtered_links == expected_new_links
