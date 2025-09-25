@@ -1,7 +1,8 @@
 import argparse
 import logging
 import os
-from datetime import datetime  # noqa: F401
+import re
+from datetime import datetime
 
 from .config.config import ARXIV_TAGS, LLM_QUESTIONS, MAX_ARXIV_RESULTS
 from .src.arxiv_scraper import (  # Changed import
@@ -18,17 +19,86 @@ logging.basicConfig(
 )
 
 
-def generate_markdown_table(results: list[dict]) -> str:
+def extract_questions_from_existing_file(file_path: str) -> list[str]:
+    """Extract LLM questions from existing markdown file by parsing the header row."""
+    if not os.path.exists(file_path):
+        return []
+    
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+        
+        if len(lines) < 1:
+            return []
+        
+        # Parse the header row (first line)
+        header_line = lines[0].strip()
+        headers = [h.strip() for h in header_line.split("|")]
+        
+        # Remove "Paper Title" and "arXiv Link" to get only LLM questions
+        if len(headers) >= 2:
+            llm_questions = headers[2:]  # Skip first two columns
+            return [q for q in llm_questions if q]  # Remove empty strings
+        
+        return []
+    except Exception as e:
+        logging.warning(f"Error extracting questions from {file_path}: {e}")
+        return []
+
+
+def questions_match(existing_questions: list[str], config_questions: list[str]) -> bool:
+    """Check if existing file questions exactly match config questions."""
+    # Normalize questions by removing newlines and extra spaces
+    existing_normalized = [q.replace("\n", " ").strip() for q in existing_questions]
+    config_normalized = [q.replace("\n", " ").strip() for q in config_questions]
+    
+    return existing_normalized == config_normalized
+
+
+def generate_date_suffix() -> str:
+    """Generate date suffix in ddmmyy format."""
+    now = datetime.now()
+    return now.strftime("%d%m%y")
+
+
+def get_output_filename(base_filename: str, output_dir: str) -> str:
+    """
+    Determine the appropriate output filename based on existing file and question matching.
+    Returns either the original filename or a new filename with date suffix.
+    """
+    output_path = os.path.join(output_dir, base_filename)
+    
+    # Check if file exists
+    if not os.path.exists(output_path):
+        return base_filename
+    
+    # Extract questions from existing file
+    existing_questions = extract_questions_from_existing_file(output_path)
+    
+    # Check if questions match
+    if questions_match(existing_questions, LLM_QUESTIONS):
+        return base_filename  # Use original filename for appending
+    
+    # Create new filename with date suffix
+    name, ext = os.path.splitext(base_filename)
+    date_suffix = generate_date_suffix()
+    return f"{name}_{date_suffix}{ext}"
+
+
+def generate_markdown_table(results: list[dict], include_header: bool = True) -> str:
     """Generates a markdown table from the analysis results."""
     if not results:
         return "No results to display."
 
-    # Prepare headers
-    headers = ["Paper Title", "arXiv Link"] + [
-        q.replace("\n", " ") for q in LLM_QUESTIONS
-    ]
-    markdown = " | ".join(headers) + "\n"
-    markdown += " | ".join(["-" * len(h) for h in headers]) + "\n"
+    markdown = ""
+    
+    if include_header:
+        # Prepare headers
+        headers = ["Paper Title", "arXiv Link"] + [
+            q.replace("\n", " ") for q in LLM_QUESTIONS
+        ]
+        markdown += " | ".join(headers) + "\n"
+        markdown += " | ".join(["-" * len(h) for h in headers]) + "\n"
 
     # Add rows
     for res in results:
@@ -79,8 +149,15 @@ def main():
 
     args = parser.parse_args()
 
-    output_path = os.path.join(args.output_dir, args.output_filename)
     os.makedirs(args.output_dir, exist_ok=True)
+    
+    # Determine the appropriate output filename
+    actual_filename = get_output_filename(args.output_filename, args.output_dir)
+    output_path = os.path.join(args.output_dir, actual_filename)
+    
+    # Check if we should append to existing file
+    should_append = (actual_filename == args.output_filename and 
+                     os.path.exists(output_path))
 
     logging.info(
         f"Starting CIPhR with tags: {args.tags}, max_results: {args.max_results}"
@@ -148,10 +225,21 @@ def main():
         all_results.append(result_entry)
 
     # Generate and save markdown table
-    markdown_table = generate_markdown_table(all_results)
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(markdown_table)
-    logging.info(f"Analysis complete. Markdown table saved to {output_path}")
+    if should_append:
+        # Append mode: don't include header, just add new rows
+        markdown_table = generate_markdown_table(all_results, include_header=False)
+        with open(output_path, "a", encoding="utf-8") as f:
+            f.write(markdown_table)
+        logging.info(f"Analysis complete. Results appended to existing file: {output_path}")
+    else:
+        # New file mode: include full table with header
+        markdown_table = generate_markdown_table(all_results, include_header=True)
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.write(markdown_table)
+        if actual_filename != args.output_filename:
+            logging.info(f"Analysis complete. New file created with date suffix: {output_path}")
+        else:
+            logging.info(f"Analysis complete. Markdown table saved to {output_path}")
 
 
 if __name__ == "__main__":
