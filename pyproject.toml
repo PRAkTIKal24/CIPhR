@@ -1,7 +1,7 @@
 [project]
 name = "ciphr"
-version = "0.1.3"
-description = "Crawling and Ingesting Physics Research"
+version = "0.2.1"
+description = "Crawl and Ingest Physics Research"
 authors = [{ name = "Pratik Jawahar" }]
 requires-python = ">=3.10, <3.13"
 readme = "README.md"
