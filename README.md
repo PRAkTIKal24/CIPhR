@@ -1,4 +1,4 @@
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17202718.svg)](https://doi.org/10.5281/zenodo.17202718)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.17202746.svg)](https://doi.org/10.5281/zenodo.17202746)
 ![GitHub Release-date](https://img.shields.io/github/release-date-pre/PRAkTIKal24/CIPhR?style=flat&color=blue)
 ![Release-version](https://img.shields.io/github/v/tag/PRAkTIKal24/CIPhR?include_prereleases&label=latest%20release&color=blue)
 ![GitHub repo size](https://img.shields.io/github/repo-size/PRAkTIKal24/CIPhR)
