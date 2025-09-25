@@ -46,12 +46,10 @@ CIPhR/
 
 ## Setup and Installation
 
-1.  **Clone the repository (or integrate into your existing TARP repo)**:
+1.  **Clone the repository
 
     ```bash
-    git clone <your-tarp-repo-url>
-    cd <your-tarp-repo-name>
-    # If integrating, copy the CIPhR directory into your repo
+    git clone git@github.com:PRAkTIKal24/CIPhR.git
     ```
 
 2.  **Navigate to the CIPhR directory**:
@@ -76,8 +74,15 @@ CIPhR/
     uv sync
     ```
 
-5.  **Configure API Keys**: Create a `.env` file in the `CIPhR/` directory with your API keys:
+    If you want to develop new features add install the `dev-dependencies` as well:
 
+    ```bash
+    uv pip install --group dev
+
+    ```
+
+5.  **Configure API Keys**: Open the `.env` file that should contain `API-KEY` fields:
+    
     ```dotenv
     FIRECRAWL_API_KEY=your_firecrawl_api_key
     GEMINI_API_KEY=your_gemini_api_key
@@ -120,9 +125,9 @@ The `.github/workflows/main.yml` file sets up a daily GitHub Actions workflow:
 
 -   It runs every day at 00:00 UTC.
 -   It checks out the repository, sets up Python, installs `uv` and dependencies.
--   It runs the `src/main.py` script.
--   It uploads the generated `research_insights.md` as a workflow artifact.
--   It attempts to commit and push the updated `research_insights.md` back to the repository. **Note**: For this step to work, you might need to configure a `GITHUB_TOKEN` with write permissions or use a Personal Access Token (PAT) if the repository is protected. For public repositories, the default `GITHUB_TOKEN` usually has sufficient permissions for `pull_request` or `push` events.
+-   It runs the `ciphr/ciphr.py` script.
+-   It uploads the generated `hepex.md` as a workflow artifact.
+-   It attempts to commit and push the updated `hepex.md` back to the repository. **Note**: For this step to work, you might need to configure a `GITHUB_TOKEN` with write permissions or use a Personal Access Token (PAT) if the repository is protected. For public repositories, the default `GITHUB_TOKEN` usually has sufficient permissions for `pull_request` or `push` events.
 
 ### Setting up API Keys in GitHub Secrets
 
@@ -136,9 +141,9 @@ For the GitHub Actions workflow to access your API keys, you must add them as re
 
 ## Extending and Customizing
 
--   **New LLM Questions**: Simply update the `LLM_QUESTIONS` list in `config/config.py`.
--   **Different arXiv Categories**: Modify the `--tags` argument when running the script or the `ARXIV_TAGS` in `config/config.py`.
--   **Output Format**: The `generate_markdown_table` function in `src/main.py` can be modified to change the output format.
+-   **New LLM Questions**: Simply update the `LLM_QUESTIONS` list in `ciphr/config/config.py`.
+-   **Different arXiv Categories**: Modify the `--tags` argument when running the script or the `ARXIV_TAGS` in `ciphr/config/config.py`.
+-   **Output Format**: The `generate_markdown_table` function in `ciphr/ciphr.py` can be modified to change the output format.
 
 ## License
 
