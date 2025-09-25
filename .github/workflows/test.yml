@@ -98,11 +98,6 @@ jobs:
         source .venv/bin/activate
         uv run ruff format --check ciphr/ tests/
 
-    - name: Run black formatting check
-      run: |
-        source .venv/bin/activate
-        uv run black --check ciphr/ tests/
-
   installation-test:
     runs-on: ubuntu-latest
     strategy:
