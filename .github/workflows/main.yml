@@ -26,7 +26,7 @@ jobs:
         export PATH="$HOME/.local/bin:$PATH"
         uv venv
         source .venv/bin/activate
-        uv pip install -r requirements.txt
+        uv pip install -e .
 
     - name: Run CIPhR tool
       env:
@@ -35,13 +35,13 @@ jobs:
       run: |
         export PATH="$HOME/.local/bin:$PATH"
         source .venv/bin/activate
-        python src/main.py --output_dir output --output_filename research_insights.md
+        uv run ciphr --output_dir output --output_filename hepex.md --tags hep-ex
 
     - name: Upload research insights
       uses: actions/upload-artifact@v4
       with:
         name: research-insights
-        path: output/research_insights.md
+        path: output/hepex.md
 
     - name: Commit and push changes (if any)
       run: |
