@@ -61,6 +61,46 @@ def generate_date_suffix() -> str:
     return now.strftime("%d%m%y")
 
 
+def extract_existing_arxiv_links(file_path: str) -> set[str]:
+    """Extract all arXiv links from existing markdown file."""
+    if not os.path.exists(file_path):
+        return set()
+    
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        
+        # Extract arXiv links using regex pattern
+        # Look for markdown links in the format [Link](http://arxiv.org/abs/...)
+        import re
+        arxiv_pattern = r'\[Link\]\((http://arxiv\.org/abs/[^)]+)\)'
+        matches = re.findall(arxiv_pattern, content)
+        
+        return set(matches)
+    except Exception as e:
+        logging.warning(f"Error extracting arXiv links from {file_path}: {e}")
+        return set()
+
+
+def filter_new_papers(papers: list, existing_links: set[str]) -> list:
+    """Filter out papers that already exist in the output file based on arXiv links."""
+    new_papers = []
+    skipped_count = 0
+    
+    for paper in papers:
+        paper_link = paper.entry_id
+        if paper_link not in existing_links:
+            new_papers.append(paper)
+        else:
+            skipped_count += 1
+            logging.info(f"Skipping duplicate paper: {paper.title} ({paper_link})")
+    
+    if skipped_count > 0:
+        logging.info(f"Skipped {skipped_count} duplicate papers")
+    
+    return new_papers
+
+
 def get_output_filename(base_filename: str, output_dir: str) -> str:
     """
     Determine the appropriate output filename based on existing file and question matching.
@@ -158,6 +198,12 @@ def main():
     # Check if we should append to existing file
     should_append = (actual_filename == args.output_filename and 
                      os.path.exists(output_path))
+    
+    # Get existing arXiv links to avoid duplicates
+    existing_links = set()
+    if should_append:
+        existing_links = extract_existing_arxiv_links(output_path)
+        logging.info(f"Found {len(existing_links)} existing papers in output file")
 
     logging.info(
         f"Starting CIPhR with tags: {args.tags}, max_results: {args.max_results}"
@@ -170,6 +216,14 @@ def main():
     arxiv_tags_formatted = args.tags.replace(",", " OR cat:")
     arxiv_query = f"cat:{arxiv_tags_formatted}"
     papers = search_arxiv(query=arxiv_query, max_results=args.max_results)
+    
+    # Filter out papers that already exist in the output file
+    if should_append and existing_links:
+        original_count = len(papers)
+        papers = filter_new_papers(papers, existing_links)
+        logging.info(f"Processing {len(papers)} new papers (filtered {original_count - len(papers)} duplicates)")
+    else:
+        logging.info(f"Processing {len(papers)} papers")
 
     for paper in papers:
         logging.info(f"Processing paper: {paper.title}")
@@ -225,12 +279,19 @@ def main():
         all_results.append(result_entry)
 
     # Generate and save markdown table
+    if not all_results:
+        if should_append:
+            logging.info("No new papers found. Nothing to append.")
+        else:
+            logging.info("No papers found to process.")
+        return
+    
     if should_append:
         # Append mode: don't include header, just add new rows
         markdown_table = generate_markdown_table(all_results, include_header=False)
         with open(output_path, "a", encoding="utf-8") as f:
             f.write(markdown_table)
-        logging.info(f"Analysis complete. Results appended to existing file: {output_path}")
+        logging.info(f"Analysis complete. {len(all_results)} new results appended to existing file: {output_path}")
     else:
         # New file mode: include full table with header
         markdown_table = generate_markdown_table(all_results, include_header=True)
