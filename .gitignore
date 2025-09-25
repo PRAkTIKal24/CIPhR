@@ -4,3 +4,4 @@ output/
 shell_scripts/
 uv.lock
 .env
+run_with_keys.sh
