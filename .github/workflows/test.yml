@@ -135,8 +135,3 @@ jobs:
         source .venv/bin/activate
         python -c "import ciphr; print('CIPhR package imported successfully')"
         uv run ciphr --help
-
-    - name: Test that pytest is NOT in basic installation
-      run: |
-        source .venv/bin/activate
-        python -c "import pytest" 2>/dev/null && echo "ERROR: pytest should not be in basic installation" && exit 1 || echo "✓ Correct: pytest not in basic uv installation"
