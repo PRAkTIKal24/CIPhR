@@ -11,7 +11,9 @@ from ciphr.ciphr import (
     questions_match,
     generate_date_suffix,
     get_output_filename,
-    generate_markdown_table
+    generate_markdown_table,
+    extract_existing_arxiv_links,
+    filter_new_papers
 )
 from ciphr.config.config import LLM_QUESTIONS
 
@@ -127,3 +129,83 @@ def test_config_questions_structure():
     assert len(LLM_QUESTIONS) > 0
     assert all(isinstance(q, str) for q in LLM_QUESTIONS)
     assert all(len(q.strip()) > 0 for q in LLM_QUESTIONS)
+
+
+def test_extract_existing_arxiv_links():
+    """Test extracting arXiv links from existing markdown files."""
+    # Test with existing file
+    links = extract_existing_arxiv_links('/workspaces/CIPhR/output/hepex.md')
+    assert isinstance(links, set)
+    assert len(links) > 0  # Should find links in the existing file
+    
+    # All links should be arXiv URLs
+    for link in links:
+        assert link.startswith('http://arxiv.org/abs/')
+    
+    # Test with non-existent file
+    no_links = extract_existing_arxiv_links('/workspaces/CIPhR/output/nonexistent.md')
+    assert no_links == set()
+
+
+def test_filter_new_papers():
+    """Test filtering papers based on existing links."""
+    # Create mock paper objects
+    class MockPaper:
+        def __init__(self, title, entry_id):
+            self.title = title
+            self.entry_id = entry_id
+    
+    # Create test papers
+    papers = [
+        MockPaper("Paper 1", "http://arxiv.org/abs/2024.12345"),
+        MockPaper("Paper 2", "http://arxiv.org/abs/2024.67890"),
+        MockPaper("Paper 3", "http://arxiv.org/abs/2024.11111")
+    ]
+    
+    # Test with no existing links
+    existing_links = set()
+    filtered = filter_new_papers(papers, existing_links)
+    assert len(filtered) == len(papers)  # All papers should be included
+    
+    # Test with some existing links
+    existing_links = {"http://arxiv.org/abs/2024.12345", "http://arxiv.org/abs/2024.67890"}
+    filtered = filter_new_papers(papers, existing_links)
+    assert len(filtered) == 1  # Only one paper should remain
+    assert filtered[0].entry_id == "http://arxiv.org/abs/2024.11111"
+    
+    # Test with all existing links
+    existing_links = {paper.entry_id for paper in papers}
+    filtered = filter_new_papers(papers, existing_links)
+    assert len(filtered) == 0  # No papers should remain
+
+
+def test_duplicate_detection_integration():
+    """Test the complete duplicate detection workflow."""
+    # Test with real existing file
+    existing_links = extract_existing_arxiv_links('/workspaces/CIPhR/output/hepex.md')
+    
+    # Create mock papers with some duplicates
+    class MockPaper:
+        def __init__(self, title, entry_id):
+            self.title = title
+            self.entry_id = entry_id
+    
+    # Use one existing link and one new link
+    test_papers = [
+        MockPaper("New Paper", "http://arxiv.org/abs/2024.99999"),
+    ]
+    
+    # Add existing link if we have any
+    if existing_links:
+        existing_link = list(existing_links)[0]
+        test_papers.append(MockPaper("Existing Paper", existing_link))
+    
+    # Filter papers
+    filtered = filter_new_papers(test_papers, existing_links)
+    
+    # Should filter out existing papers
+    if existing_links:
+        assert len(filtered) == 1  # Only the new paper
+        assert filtered[0].entry_id == "http://arxiv.org/abs/2024.99999"
+    else:
+        assert len(filtered) == len(test_papers)  # All papers if no existing links

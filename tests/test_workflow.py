@@ -12,7 +12,9 @@ from ciphr.ciphr import (
     questions_match,
     generate_date_suffix,
     get_output_filename,
-    generate_markdown_table
+    generate_markdown_table,
+    extract_existing_arxiv_links,
+    filter_new_papers
 )
 from ciphr.config.config import LLM_QUESTIONS
 
@@ -110,6 +112,49 @@ Some Paper | [Link](http://arxiv.org/abs/test) | Answer 1 | Answer 2
         assert filename3 == expected_filename, f"Expected {expected_filename}, got {filename3}"
         
         print(f"✓ Correctly generated filename with date suffix: {filename3}")
+        
+        # Scenario 4: Testing duplicate detection
+        print("\n--- Scenario 4: Testing duplicate detection ---")
+        
+        # Extract existing links from the physics_papers.md file we created
+        existing_links = extract_existing_arxiv_links(output_path1)
+        print(f"Existing links: {existing_links}")
+        
+        # Create mock paper objects for testing
+        class MockPaper:
+            def __init__(self, title, entry_id):
+                self.title = title
+                self.entry_id = entry_id
+        
+        # Create test papers - one duplicate, one new
+        test_papers = [
+            MockPaper("Dark Matter Detection with XENON", "http://arxiv.org/abs/2024.12345"),  # Duplicate
+            MockPaper("New Gravitational Wave Detection", "http://arxiv.org/abs/2024.99999")   # New
+        ]
+        
+        # Filter out duplicates
+        filtered_papers = filter_new_papers(test_papers, existing_links)
+        print(f"Original papers: {len(test_papers)}")
+        print(f"Filtered papers: {len(filtered_papers)}")
+        
+        # Should filter out the duplicate
+        assert len(filtered_papers) == 1, f"Expected 1 paper after filtering, got {len(filtered_papers)}"
+        assert filtered_papers[0].entry_id == "http://arxiv.org/abs/2024.99999", "Wrong paper remained after filtering"
+        
+        print("✓ Duplicate detection working correctly")
+        
+        # Scenario 5: Testing with no duplicates
+        print("\n--- Scenario 5: Testing with no duplicates ---")
+        
+        all_new_papers = [
+            MockPaper("Quantum Computing Breakthrough", "http://arxiv.org/abs/2024.11111"),
+            MockPaper("Novel Superconductor Discovery", "http://arxiv.org/abs/2024.22222")
+        ]
+        
+        filtered_all_new = filter_new_papers(all_new_papers, existing_links)
+        assert len(filtered_all_new) == len(all_new_papers), "All new papers should remain"
+        
+        print("✓ All new papers correctly preserved")
         
         print("\n=== All scenarios tested successfully! ===")
 
