@@ -1,4 +1,5 @@
 import argparse
+import json
 import logging
 import os
 import sys
@@ -26,6 +27,7 @@ def extract_existing_arxiv_links(file_path: str) -> set[str]:
 
         # Extract arXiv links using regex pattern
         import re
+
         arxiv_pattern = r"\[Link\]\((http://arxiv\.org/abs/[^)]+)\)"
         matches = re.findall(arxiv_pattern, content)
 
@@ -114,143 +116,173 @@ def main():
         logging.getLogger().addHandler(console_handler)
 
     os.makedirs(args.output_dir, exist_ok=True)
-    
+
     if args.mode in ["collect", "full"]:
         logging.info("=== DATA COLLECTION PHASE ===")
-        
+
         # Initialize processors
         data_processor = DataProcessor(args.output_dir)
         result_processor = ResultProcessor(args.output_dir)
-        
+
         # Determine final output filename and check for duplicates
-        final_filename = result_processor.get_output_filename(args.output_filename, LLM_QUESTIONS)
+        final_filename = result_processor.get_output_filename(
+            args.output_filename, LLM_QUESTIONS
+        )
         final_output_path = os.path.join(args.output_dir, final_filename)
-        should_append = final_filename == args.output_filename and os.path.exists(final_output_path)
-        
+        should_append = final_filename == args.output_filename and os.path.exists(
+            final_output_path
+        )
+
         # Get existing links to avoid duplicates
         existing_links = set()
         if should_append:
             existing_links = extract_existing_arxiv_links(final_output_path)
             logging.info(f"Found {len(existing_links)} existing papers in output file")
-        
-        logging.info(f"Starting data collection with tags: {args.tags}, max_results: {args.max_results}")
-        
+
+        logging.info(
+            f"Starting data collection with tags: {args.tags}, max_results: {args.max_results}"
+        )
+
         # Search arXiv
         arxiv_tags_formatted = args.tags.replace(",", " OR cat:")
         arxiv_query = f"cat:{arxiv_tags_formatted}"
         papers = search_arxiv(query=arxiv_query, max_results=args.max_results)
-        
+
         # Filter out duplicates
         if should_append and existing_links:
             original_count = len(papers)
             papers = filter_new_papers(papers, existing_links)
-            logging.info(f"Processing {len(papers)} new papers (filtered {original_count - len(papers)} duplicates)")
+            logging.info(
+                f"Processing {len(papers)} new papers (filtered {original_count - len(papers)} duplicates)"
+            )
         else:
             logging.info(f"Processing {len(papers)} papers")
-        
+
         if not papers:
             if should_append:
                 logging.info("No new papers found. Nothing to process.")
             else:
                 logging.info("No papers found to process.")
             return
-        
+
         # Collect paper data
         papers_data = data_processor.collect_paper_data(papers)
-        
+
         if not papers_data:
             logging.info("No paper data collected. Exiting.")
             return
-        
+
         # Save papers data for LLM processing
-        papers_data_file = data_processor.save_papers_data(papers_data, "papers_data.json")
-        
+        papers_data_file = data_processor.save_papers_data(
+            papers_data, "papers_data.json"
+        )
+
         # Create analysis prompts
-        prompts_file = data_processor.create_analysis_prompts(LLM_QUESTIONS, "analysis_prompts.json")
-        
-        logging.info(f"=== DATA COLLECTION COMPLETE ===")
+        prompts_file = data_processor.create_analysis_prompts(
+            LLM_QUESTIONS, "analysis_prompts.json"
+        )
+
+        logging.info("=== DATA COLLECTION COMPLETE ===")
         logging.info(f"Papers data saved to: {papers_data_file}")
         logging.info(f"Analysis prompts saved to: {prompts_file}")
-        logging.info(f"Ready for LLM analysis phase")
-        
+        logging.info("Ready for LLM analysis phase")
+
         if args.mode == "collect":
             return
-    
+
     if args.mode in ["process", "full"]:
         logging.info("=== RESULT PROCESSING PHASE ===")
-        
+
         result_processor = ResultProcessor(args.output_dir)
-        
+
         # Load papers data
         papers_data_file = os.path.join(args.output_dir, "papers_data.json")
         if not os.path.exists(papers_data_file):
             logging.error(f"Papers data file not found: {papers_data_file}")
-            logging.error("Run with --mode collect first, or ensure the data file exists.")
+            logging.error(
+                "Run with --mode collect first, or ensure the data file exists."
+            )
             return
-        
+
         papers_data = result_processor.load_papers_data(papers_data_file)
         logging.info(f"Loaded {len(papers_data)} papers from {papers_data_file}")
-        
+
         # Load LLM results
         llm_results_path = os.path.join(args.output_dir, args.llm_results_file)
         if not os.path.exists(llm_results_path):
             logging.error(f"LLM results file not found: {llm_results_path}")
             logging.error("Run the LLM analysis step first, or check the file path.")
             if args.mode == "full":
-                logging.info("In 'full' mode, this would be where the GitHub Action runs run-gemini-cli")
-                logging.info("For now, exiting. Run the LLM analysis manually and use --mode process")
+                logging.info(
+                    "In 'full' mode, this would be where the GitHub Action runs run-gemini-cli"
+                )
+                logging.info(
+                    "For now, exiting. Run the LLM analysis manually and use --mode process"
+                )
             return
-        
+
         # Read LLM results - expect JSON array format from run-gemini-cli
-        with open(llm_results_path, 'r', encoding='utf-8') as f:
+        with open(llm_results_path, "r", encoding="utf-8") as f:
             content = f.read().strip()
-        
+
         logging.info(f"LLM results file size: {len(content)} characters")
         logging.info(f"Raw LLM results content preview: {content[:500]}...")
-        
+
         # Handle completely empty results
         if not content:
             logging.error("LLM results file is completely empty!")
             # Create fallback results
             fallback_result = {q: "Error: Empty LLM response" for q in LLM_QUESTIONS}
             llm_results = [json.dumps(fallback_result)] * len(papers_data)
-            combined_results = result_processor.combine_results(papers_data, llm_results, LLM_QUESTIONS)
-            output_file = result_processor.save_results(combined_results, LLM_QUESTIONS, args.output_filename)
-            logging.info(f"Created fallback results due to empty LLM response: {output_file}")
+            combined_results = result_processor.combine_results(
+                papers_data, llm_results, LLM_QUESTIONS
+            )
+            output_file = result_processor.save_results(
+                combined_results, LLM_QUESTIONS, args.output_filename
+            )
+            logging.info(
+                f"Created fallback results due to empty LLM response: {output_file}"
+            )
             return
-        
+
         # Parse individual results (now separated by ---PAPER--- from individual analysis)
         llm_results_parsed = []
         try:
-            import json
             import re
-            
+
             # First check if we have individual results separated by ---PAPER---
             if "---PAPER---" in content:
                 logging.info("Found individual paper results separated by ---PAPER---")
                 individual_results = content.split("---PAPER---")
-                llm_results_parsed = [result.strip() for result in individual_results if result.strip()]
+                llm_results_parsed = [
+                    result.strip() for result in individual_results if result.strip()
+                ]
                 logging.info(f"Split into {len(llm_results_parsed)} individual results")
-                
+
             # Fallback: try to parse as JSON array (batch processing)
-            elif content.strip().startswith('['):
+            elif content.strip().startswith("["):
                 logging.info("Attempting to parse as JSON array (batch processing)")
-                json_match = re.search(r'\[.*\]', content, re.DOTALL)
+                json_match = re.search(r"\[.*\]", content, re.DOTALL)
                 if json_match:
                     json_str = json_match.group()
                     parsed_data = json.loads(json_str)
-                    
+
                     if isinstance(parsed_data, list):
-                        llm_results_parsed = [json.dumps(item) if isinstance(item, dict) else str(item) for item in parsed_data]
-                        logging.info(f"Successfully parsed {len(llm_results_parsed)} LLM results from JSON array")
+                        llm_results_parsed = [
+                            json.dumps(item) if isinstance(item, dict) else str(item)
+                            for item in parsed_data
+                        ]
+                        logging.info(
+                            f"Successfully parsed {len(llm_results_parsed)} LLM results from JSON array"
+                        )
                     else:
                         llm_results_parsed = [json.dumps(parsed_data)]
-                        
+
             # Single result case
             else:
                 logging.info("Treating as single result for all papers")
                 llm_results_parsed = [content]
-                
+
         except (json.JSONDecodeError, AttributeError) as e:
             logging.warning(f"Could not parse LLM results as structured data: {e}")
             # Ultimate fallback - split by ---PAPER--- or use whole content
@@ -258,28 +290,36 @@ def main():
                 llm_results_parsed = content.split("---PAPER---")
             else:
                 llm_results_parsed = [content]
-        
+
         # Final check - ensure we have the right number of results
         if len(llm_results_parsed) != len(papers_data):
-            logging.warning(f"Final mismatch: {len(papers_data)} papers but {len(llm_results_parsed)} LLM results. Adjusting...")
+            logging.warning(
+                f"Final mismatch: {len(papers_data)} papers but {len(llm_results_parsed)} LLM results. Adjusting..."
+            )
             if len(llm_results_parsed) < len(papers_data):
                 # Pad with empty results
                 while len(llm_results_parsed) < len(papers_data):
                     llm_results_parsed.append('{"error": "No LLM result available"}')
             else:
                 # Truncate excess results
-                llm_results_parsed = llm_results_parsed[:len(papers_data)]
-        
+                llm_results_parsed = llm_results_parsed[: len(papers_data)]
+
         llm_results = llm_results_parsed
-        logging.info(f"Final LLM results count: {len(llm_results)} (matching {len(papers_data)} papers)")
-        
+        logging.info(
+            f"Final LLM results count: {len(llm_results)} (matching {len(papers_data)} papers)"
+        )
+
         # Combine results
-        combined_results = result_processor.combine_results(papers_data, llm_results, LLM_QUESTIONS)
-        
+        combined_results = result_processor.combine_results(
+            papers_data, llm_results, LLM_QUESTIONS
+        )
+
         # Save final markdown
-        output_file = result_processor.save_results(combined_results, LLM_QUESTIONS, args.output_filename)
-        
-        logging.info(f"=== PROCESSING COMPLETE ===")
+        output_file = result_processor.save_results(
+            combined_results, LLM_QUESTIONS, args.output_filename
+        )
+
+        logging.info("=== PROCESSING COMPLETE ===")
         logging.info(f"Final results saved to: {output_file}")
 
 
