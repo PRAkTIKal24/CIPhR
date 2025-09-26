@@ -1,5 +1,5 @@
 
-name: CIPhR Daily Research Ingestion
+name: CIPhR Daily Research Ingestion (Hybrid)
 
 on:
   schedule:
@@ -8,8 +8,10 @@ on:
   workflow_dispatch: # Allows manual triggering
 
 jobs:
-  ingest_research:
+  collect_data:
     runs-on: ubuntu-latest
+    outputs:
+      papers-found: ${{ steps.data-collection.outputs.papers-found }}
 
     steps:
     - name: Checkout repository
@@ -28,30 +30,311 @@ jobs:
         source .venv/bin/activate
         uv pip install -e .
 
-    - name: Run CIPhR tool
-      env:
-        FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    - name: Run Data Collection
+      id: data-collection
+      run: |
+        cd ${{ github.workspace }}
+        uv run ciphr-hybrid --mode collect --max_results 5 --verbose
+        
+        # Set output based on whether papers_data.json was created and has content
+        if [ -f "output/papers_data.json" ]; then
+          PAPER_COUNT=$(python3 -c "import json; data=json.load(open('output/papers_data.json')); print(len(data))" 2>/dev/null || echo "0")
+          echo "papers-found=$PAPER_COUNT" >> $GITHUB_OUTPUT
+          echo "Found $PAPER_COUNT papers for analysis"
+        else
+          echo "papers-found=0" >> $GITHUB_OUTPUT
+          echo "No papers found"
+        fi
+
+    - name: Upload collected data
+      if: steps.data-collection.outputs.papers-found > 0
+      uses: actions/upload-artifact@v4
+      with:
+        name: collected-data
+        path: |
+          output/papers_data.json
+          output/analysis_prompts.json
+
+  analyze_papers:
+    needs: collect_data
+    runs-on: ubuntu-latest
+    if: needs.collect_data.outputs.papers-found > 0
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Download collected data
+      uses: actions/download-artifact@v4
+      with:
+        name: collected-data
+        path: output/
+
+    - name: Analyze papers individually with Gemini
+      run: |
+        # Process each paper individually (original approach)
+        python << 'EOF'
+        import json
+        import os
+
+        # Load papers data
+        with open('output/papers_data.json', 'r') as f:
+            papers = json.load(f)
+
+        print(f"Processing {len(papers)} papers individually...")
+
+        # Create individual results array
+        all_results = []
+
+        for i, paper in enumerate(papers):
+            print(f"Preparing paper {i+1}/{len(papers)}: {paper['title'][:50]}...")
+            
+            # Create individual paper file for this analysis
+            individual_paper = {
+                "title": paper["title"],
+                "abstract": paper.get("abstract", ""),
+                "combined_content": paper.get("combined_content", "")[:2000],  # Limit content size
+                "arxiv_url": paper["arxiv_url"]
+            }
+            
+            with open(f'paper_{i+1}.json', 'w') as f:
+                json.dump(individual_paper, f, indent=2)
+            
+            print(f"Created paper_{i+1}.json for individual analysis")
+
+        print("All papers prepared for individual analysis")
+        EOF
+
+    - name: Analyze Paper 1
+      id: analyze-1
+      if: needs.collect_data.outputs.papers-found >= 1
+      uses: 'google-github-actions/run-gemini-cli@v0'
+      with:
+        gemini_api_key: '${{ secrets.GEMINI_API_KEY }}'
+        prompt: |
+          Analyze this physics research paper and answer the following questions. Respond with a JSON object with the exact question text as keys.
+
+          Questions:
+          1. "What is the main physics phenomenon studied by this paper"
+          2. "Is this work related to dark matter searches? If yes, how?"
+          3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
+
+          Response format:
+          {
+            "What is the main physics phenomenon studied by this paper": "Your answer here",
+            "Is this work related to dark matter searches? If yes, how?": "Your answer here",
+            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here"
+          }
+
+          Paper to analyze:
+          $(cat paper_1.json)
+
+    - name: Analyze Paper 2
+      id: analyze-2
+      if: needs.collect_data.outputs.papers-found >= 2
+      uses: 'google-github-actions/run-gemini-cli@v0'
+      with:
+        gemini_api_key: '${{ secrets.GEMINI_API_KEY }}'
+        prompt: |
+          Analyze this physics research paper and answer the following questions. Respond with a JSON object with the exact question text as keys.
+
+          Questions:
+          1. "What is the main physics phenomenon studied by this paper"
+          2. "Is this work related to dark matter searches? If yes, how?"
+          3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
+
+          Response format:
+          {
+            "What is the main physics phenomenon studied by this paper": "Your answer here",
+            "Is this work related to dark matter searches? If yes, how?": "Your answer here",
+            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here"
+          }
+
+          Paper to analyze:
+          $(cat paper_2.json)
+
+    - name: Analyze Paper 3
+      id: analyze-3
+      if: needs.collect_data.outputs.papers-found >= 3
+      uses: 'google-github-actions/run-gemini-cli@v0'
+      with:
+        gemini_api_key: '${{ secrets.GEMINI_API_KEY }}'
+        prompt: |
+          Analyze this physics research paper and answer the following questions. Respond with a JSON object with the exact question text as keys.
+
+          Questions:
+          1. "What is the main physics phenomenon studied by this paper"
+          2. "Is this work related to dark matter searches? If yes, how?"
+          3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
+
+          Response format:
+          {
+            "What is the main physics phenomenon studied by this paper": "Your answer here",
+            "Is this work related to dark matter searches? If yes, how?": "Your answer here",
+            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here"
+          }
+
+          Paper to analyze:
+          $(cat paper_3.json)
+
+    - name: Analyze Paper 4
+      id: analyze-4
+      if: needs.collect_data.outputs.papers-found >= 4
+      uses: 'google-github-actions/run-gemini-cli@v0'
+      with:
+        gemini_api_key: '${{ secrets.GEMINI_API_KEY }}'
+        prompt: |
+          Analyze this physics research paper and answer the following questions. Respond with a JSON object with the exact question text as keys.
+
+          Questions:
+          1. "What is the main physics phenomenon studied by this paper"
+          2. "Is this work related to dark matter searches? If yes, how?"
+          3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
+
+          Response format:
+          {
+            "What is the main physics phenomenon studied by this paper": "Your answer here",
+            "Is this work related to dark matter searches? If yes, how?": "Your answer here",
+            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here"
+          }
+
+          Paper to analyze:
+          $(cat paper_4.json)
+
+    - name: Analyze Paper 5
+      id: analyze-5
+      if: needs.collect_data.outputs.papers-found >= 5
+      uses: 'google-github-actions/run-gemini-cli@v0'
+      with:
+        gemini_api_key: '${{ secrets.GEMINI_API_KEY }}'
+        prompt: |
+          Analyze this physics research paper and answer the following questions. Respond with a JSON object with the exact question text as keys.
+
+          Questions:
+          1. "What is the main physics phenomenon studied by this paper"
+          2. "Is this work related to dark matter searches? If yes, how?"
+          3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
+
+          Response format:
+          {
+            "What is the main physics phenomenon studied by this paper": "Your answer here",
+            "Is this work related to dark matter searches? If yes, how?": "Your answer here",
+            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here"
+          }
+
+          Paper to analyze:
+          $(cat paper_5.json)
+
+    - name: Combine individual results
+      run: |
+        # Combine all individual analysis results
+        python << 'EOF'
+        import json
+        import os
+
+        # Load papers count
+        with open('output/papers_data.json', 'r') as f:
+            papers_count = len(json.load(f))
+
+        print(f"Combining results for {papers_count} papers")
+
+        # Collect individual results
+        results = []
+        for i in range(1, papers_count + 1):
+            result_var = f"steps.analyze-{i}.outputs.summary"
+            print(f"Processing result {i}")
+            
+            # Get the result from environment or create error result
+            if i == 1:
+                result = '''${{ steps.analyze-1.outputs.summary }}'''
+            elif i == 2:
+                result = '''${{ steps.analyze-2.outputs.summary }}'''
+            elif i == 3:
+                result = '''${{ steps.analyze-3.outputs.summary }}'''
+            elif i == 4:
+                result = '''${{ steps.analyze-4.outputs.summary }}'''
+            elif i == 5:
+                result = '''${{ steps.analyze-5.outputs.summary }}'''
+            else:
+                result = '{"error": "No analysis performed"}'
+            
+            if not result or result.strip() == '':
+                result = '{"error": "Empty LLM response"}'
+            
+            results.append(result)
+            print(f"Added result {i}: {result[:100]}...")
+
+        # Save combined results
+        with open('output/llm_results.txt', 'w') as f:
+            f.write("---PAPER---".join(results))
+
+        print(f"Saved combined results for {len(results)} papers")
+        
+        # Debug output
+        print("=== Combined Results Preview ===")
+        with open('output/llm_results.txt', 'r') as f:
+            content = f.read()
+            print(content[:500] + "..." if len(content) > 500 else content)
+        print("=== End Preview ===")
+        EOF
+
+    - name: Upload analysis results
+      uses: actions/upload-artifact@v4
+      with:
+        name: analysis-results
+        path: |
+          output/papers_data.json
+          output/analysis_prompts.json
+          output/llm_results.txt
+
+  process_results:
+    needs: [collect_data, analyze_papers]
+    runs-on: ubuntu-latest
+    if: needs.collect_data.outputs.papers-found > 0
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install uv and dependencies
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        export PATH="$HOME/.local/bin:$PATH"
+        uv venv
+        source .venv/bin/activate
+        uv pip install -e .
+
+    - name: Download analysis results
+      uses: actions/download-artifact@v4
+      with:
+        name: analysis-results
+        path: output/
+
+    - name: Process results and generate markdown
       run: |
         export PATH="$HOME/.local/bin:$PATH"
         source .venv/bin/activate
-        uv run ciphr --output_dir output --output_filename hepex.md --tags hep-ex
+        
+        # Run result processing phase
+        uv run ciphr-hybrid --mode process --output_dir output --output_filename hepex.md --verbose
 
-    - name: Upload research insights
+    - name: Upload final insights
       uses: actions/upload-artifact@v4
       with:
-        name: hep-ex
+        name: hep-ex-insights
         path: output/hepex*.md
 
     - name: Commit and push changes (if any)
       run: |
         git config user.name github-actions
         git config user.email github-actions@github.com
-        git add -f output/
-        git commit -m "Update research insights table" || echo "No changes to commit"
-        git -f push
-      # This step requires a PAT with 'contents' scope if the workflow is not triggered by a push event
-      # or if the repository is protected. For simplicity, assuming direct push for now.
-      # In a real scenario, consider using a GitHub App or a dedicated bot user for commits.
+        git add --force output/
+        git commit -m "Update research insights table (hybrid approach)" || echo "No changes to commit"
+        git push
 
 

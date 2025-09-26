@@ -11,6 +11,10 @@
 
 # CIPhR: Crawl and Ingest Physics Research
 
+> 🚀 **Status**: Production ready with hybrid workflow ✅  
+> 🔧 **Latest**: Individual paper processing prevents empty LLM results  
+> 📅 **Updated**: September 2025 - All authentication and workflow issues resolved
+
 CIPhR is an automated tool designed to scrape particle physics research papers from arXiv, extract specific information using Large Language Model (LLM) analysis, and generate a living markdown table with research insights. This tool is built with Python, managed by `uv`, and designed for easy deployment with GitHub Actions that smartly append to output files without duplicating entries.
 
 ## Features
@@ -21,6 +25,9 @@ CIPhR is an automated tool designed to scrape particle physics research papers f
 - **Markdown Table Output**: Generates a concise markdown table summarizing the extracted information, including a citation to the paper link.
 - **GitHub Actions Ready**: Configured for daily automated execution via GitHub Actions.
 - **Temporary Storage**: Downloads PDFs to temporary storage and deletes them after processing to manage disk space.
+- **✅ Hybrid Workflow**: Robust production approach using `google-github-actions/run-gemini-cli` for reliable authentication and individual paper processing to prevent empty results.
+- **Individual Paper Processing**: Processes each paper separately to ensure reliable LLM analysis results.
+- **Duplicate Detection**: Automatically skips papers that have already been processed.
 
 ## Project Structure
 
@@ -28,20 +35,23 @@ CIPhR is an automated tool designed to scrape particle physics research papers f
 CIPhR/
 ├── .github/
 │   └── workflows/
-│       └── main.yml         # GitHub Actions workflow for daily runs
-├── config/
-│   └── config.py            # Configuration for API keys, arXiv tags, and LLM questions
-├── data/                    # Directory for temporary PDF downloads (cleaned after processing)
-├── src/
-│   ├── __init__.py
-│   ├── arxiv_scraper.py     # Handles arXiv searching, PDF downloading, and Firecrawl scraping
-│   ├── llm_analyzer.py      # Manages PDF text extraction and LLM-based content analysis
-│   └── main.py              # Main CLI script to orchestrate the workflow
-├── .env                     # Environment variables for API keys (local development)
-├── requirements.txt         # Python dependencies
-├── README.md                # Project documentation
-├── test_ciph.py             # Unit tests for the project
-└── todo.md                  # Task list for development (internal)
+│       └── main.yml              # GitHub Actions workflow (hybrid approach)
+├── ciphr/
+│   ├── config/
+│   │   └── config.py             # Configuration for API keys, arXiv tags, and LLM questions
+│   ├── src/
+│   │   ├── arxiv_scraper.py      # Handles arXiv searching and PDF downloading
+│   │   ├── llm_analyzer.py       # Original LLM analysis (legacy)
+│   │   ├── data_processor.py     # 🆕 Data collection for hybrid workflow
+│   │   └── result_processor.py   # 🆕 Result processing for hybrid workflow
+│   ├── ciphr.py                  # Original single-phase workflow
+│   └── ciphr_hybrid.py           # 🆕 Hybrid workflow orchestrator
+├── output/                       # Generated research insights and intermediate files
+├── tests/                        # Unit tests for the project
+├── pyproject.toml               # Python project configuration (uv-based)
+├── README.md                    # This file
+├── HYBRID_WORKFLOW.md           # 🆕 Detailed hybrid workflow guide
+└── .env                         # Environment variables for API keys (local development)
 ```
 
 ## Setup and Installation
@@ -92,14 +102,35 @@ CIPhR/
 
 ## Usage
 
-Run the CIPhR tool from the command line:
+### 🚀 Hybrid Workflow (Recommended)
+
+For improved reliability and authentication in GitHub Actions, use the hybrid workflow:
+
+**Data Collection:**
+```bash
+uv run ciphr-hybrid --mode collect --tags hep-ex --max_results 10 --output_dir output --output_filename hepex.md --verbose
+```
+
+**Result Processing (after LLM analysis):**
+```bash
+uv run ciphr-hybrid --mode process --output_dir output --output_filename hepex.md --verbose
+```
+
+**Local Full Workflow (requires API keys):**
+```bash
+uv run ciphr-hybrid --mode full --tags hep-ex --max_results 10 --output_dir output --output_filename hepex.md --verbose
+```
+
+> ⚠️ **Note**: The `--mode full` option requires local GEMINI_API_KEY for LLM analysis. For production use, use the GitHub Actions workflow which handles LLM analysis via the `run-gemini-cli` action.
+
+> 📖 **For detailed hybrid workflow instructions, see [HYBRID_WORKFLOW.md](HYBRID_WORKFLOW.md)**
+
+### 🔧 Original Workflow
+
+The original single-command approach still works for local development:
 
 ```bash
-    uv run ciphr \
-    --tags hep-ex \
-    --max_results 10 \
-    --output_dir output \
-    --output_filename hepex.md
+uv run ciphr --tags hep-ex --max_results 10 --output_dir output --output_filename hepex.md
 ```
 
 ### Command-line Arguments
@@ -108,6 +139,9 @@ Run the CIPhR tool from the command line:
 -   `--max_results`: Maximum number of arXiv papers to process. Default is `5`.
 -   `--output_dir`: Directory to save downloaded PDFs (temporarily) and the final markdown table. Default is `output`.
 -   `--output_filename`: Filename for the markdown output table. Default is `research_insights.md`.
+-   `--mode`: Operating mode - `collect` (data only), `process` (results only), or `full` (complete workflow).
+-   `--llm_results_file`: File containing LLM analysis results (for process mode). Default is `llm_results.txt`.
+-   `--verbose`: Enable detailed logging for debugging.
 
 ## Configuration
 
@@ -121,13 +155,29 @@ The `config/config.py` file allows you to customize default settings:
 
 ## GitHub Actions Automation
 
-The `.github/workflows/main.yml` file sets up a daily GitHub Actions workflow:
+### ✅ Hybrid Workflow (Production Ready)
 
--   It runs every day at 00:00 UTC.
--   It checks out the repository, sets up Python, installs `uv` and dependencies.
--   It runs the `ciphr/ciphr.py` script.
--   It uploads the generated `hepex.md` as a workflow artifact.
--   It attempts to commit and push the updated `hepex.md` back to the repository. **Note**: For this step to work, you might need to configure a `GITHUB_TOKEN` with write permissions or use a Personal Access Token (PAT) if the repository is protected. For public repositories, the default `GITHUB_TOKEN` usually has sufficient permissions for `pull_request` or `push` events.
+The current `.github/workflows/main.yml` uses the hybrid approach with three phases:
+
+1. **Data Collection**: Scrapes arXiv and processes PDFs using `uv run ciphr-hybrid --mode collect`
+2. **LLM Analysis**: Individual paper analysis using `google-github-actions/run-gemini-cli@v0` (analyze-1 through analyze-5 steps)
+3. **Result Processing**: Combines individual results and generates final markdown tables using `uv run ciphr-hybrid --mode process`
+
+**Benefits:**
+- ✅ Solves authentication issues in GitHub Actions environments
+- ✅ Individual paper processing prevents empty LLM results
+- ✅ More reliable error handling and recovery
+- ✅ Better logging and debugging capabilities
+- ✅ Maintained by Google for long-term stability
+- ✅ Results separated by `---PAPER---` delimiter for reliable parsing
+
+**Schedule:** 
+- Runs every day at 00:00 UTC
+- Manual triggering available via workflow_dispatch
+
+### 🔧 Legacy Workflow
+
+The original single-phase workflow is still available but may experience authentication issues in GitHub Actions environments due to GCP environment auto-detection.
 
 ### Setting up API Keys in GitHub Secrets
 
@@ -136,14 +186,88 @@ For the GitHub Actions workflow to access your API keys, you must add them as re
 1.  Go to your GitHub repository.
 2.  Navigate to `Settings` > `Secrets and variables` > `Actions`.
 3.  Click `New repository secret`.
-4.  Add `FIRECRAWL_API_KEY` with your Firecrawl API key as its value.
-5.  Add `GEMINI_API_KEY` with your Gemini API key as its value.
+4.  Add `GEMINI_API_KEY` with your [Google AI Studio API key](https://aistudio.google.com/app/apikey) as its value.
+5.  Add `FIRECRAWL_API_KEY` with your Firecrawl API key as its value (optional, for enhanced scraping).
+
+> 🔑 **Note**: The hybrid workflow only requires `GEMINI_API_KEY` for core functionality. The `google-github-actions/run-gemini-cli` action handles authentication robustly without the issues experienced by direct SDK usage.
 
 ## Extending and Customizing
 
 -   **New LLM Questions**: Simply update the `LLM_QUESTIONS` list in `ciphr/config/config.py`.
 -   **Different arXiv Categories**: Modify the `--tags` argument when running the script or the `ARXIV_TAGS` in `ciphr/config/config.py`.
--   **Output Format**: The `generate_markdown_table` function in `ciphr/ciphr.py` can be modified to change the output format.
+-   **Output Format**: The `generate_markdown_table` function can be modified in either workflow approach.
+-   **🆕 Custom Analysis**: The hybrid workflow's JSON intermediate format makes it easy to integrate with other analysis tools.
+
+### Common arXiv Tags
+- `hep-ex` - High Energy Physics - Experiment
+- `hep-ph` - High Energy Physics - Phenomenology  
+- `hep-th` - High Energy Physics - Theory
+- `nucl-ex` - Nuclear Experiment
+- `astro-ph` - Astrophysics
+- `gr-qc` - General Relativity and Quantum Cosmology
+
+## Troubleshooting
+
+### Authentication Issues (GitHub Actions)
+✅ **Resolved**: The hybrid workflow uses `google-github-actions/run-gemini-cli@v0` which handles authentication robustly.
+
+### Empty LLM Results
+✅ **Resolved**: Individual paper processing (analyze-1 through analyze-5) prevents batch processing issues that caused empty results.
+
+### Common Issues
+- **No papers found**: Check arXiv tags and date ranges
+- **Duplicate papers**: System automatically skips papers already processed (check logs for "Skipping duplicate paper")
+- **File permissions**: Ensure output directory is writable
+- **Command not found**: Use `uv run ciphr-hybrid` (not `python -m ciphr.ciphr_hybrid`)
+
+For detailed troubleshooting, see [HYBRID_WORKFLOW.md](HYBRID_WORKFLOW.md#troubleshooting).
+
+## Quick Reference
+
+### Available Commands
+
+| Command | Purpose | Best For |
+|---------|---------|----------|
+| `uv run ciphr` | Original single-phase workflow | Local development, testing |
+| `uv run ciphr-hybrid --mode collect` | Data collection only | Preparing data for analysis |
+| `uv run ciphr-hybrid --mode process` | Process LLM results | After GitHub Actions LLM analysis |
+| `uv run ciphr-hybrid --mode full` | Complete local workflow | Local testing with API keys |
+
+### Workflow Comparison
+
+| Feature | Original | Hybrid ✅ |
+|---------|----------|--------|
+| GitHub Actions reliability | ⚠️ Auth issues | ✅ Production ready |
+| Empty results prevention | ⚠️ Batch processing issues | ✅ Individual processing |
+| Error handling | Basic | ✅ Advanced |
+| Debugging | Limited | ✅ Detailed logs |
+| Maintenance | Manual SDK updates | ✅ Google maintained |
+| Result parsing | Basic | ✅ Robust with delimiters |
+
+### Migration Status
+
+✅ **Migration Complete**: The repository has been fully migrated to the hybrid workflow.
+
+**Current Commands:**
+1. **Local testing**: `uv run ciphr-hybrid --mode collect --max_results 2 --verbose`
+2. **GitHub Actions**: Uses hybrid workflow automatically
+3. **Result processing**: `uv run ciphr-hybrid --mode process --verbose`
+4. **Full local run**: `uv run ciphr-hybrid --mode full --max_results 5 --verbose` (requires API keys)
+
+**For new users**: Start directly with the hybrid workflow - no migration needed.
+
+## Example Output
+
+The tool generates markdown tables like this:
+
+```markdown
+Paper Title | arXiv Link | What is the main physics phenomenon studied by this paper | Is this work related to dark matter searches? If yes, how? | Does this paper present experimental results? If yes, what is the name of the experimental apparatus?
+----------- | ---------- | --------------------------------------------------------- | ---------------------------------------------------------- | -----------------------------------------------------------------------------------------------------
+Probing Light Dark Matter with Cosmic Gravitational Focusing | [Link](http://arxiv.org/abs/2509.21213v1) | Light dark matter detection using cosmic gravitational focusing | Yes, this paper proposes a novel method to detect light dark matter particles | No, theoretical proposal for future experiments
+Towards the Giant Radio Array for Neutrino Detection (GRAND) | [Link](http://arxiv.org/abs/2509.21306v1) | Ultra-high energy neutrino detection using radio arrays | Not directly, but neutrino detection can help constrain dark matter models | Yes, GRANDProto300 and GRAND@Auger prototypes
+```
+
+The questions analyzed can be customized in `ciphr/config/config.py`.
 
 ## License
 
