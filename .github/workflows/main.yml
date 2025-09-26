@@ -31,9 +31,20 @@ jobs:
         uv pip install -e .
 
     - name: Run Data Collection
+      id: data-collection
       run: |
         cd ${{ github.workspace }}
         uv run ciphr-hybrid --mode collect --max_results 5 --verbose
+        
+        # Set output based on whether papers_data.json was created and has content
+        if [ -f "output/papers_data.json" ]; then
+          PAPER_COUNT=$(python3 -c "import json; data=json.load(open('output/papers_data.json')); print(len(data))" 2>/dev/null || echo "0")
+          echo "papers-found=$PAPER_COUNT" >> $GITHUB_OUTPUT
+          echo "Found $PAPER_COUNT papers for analysis"
+        else
+          echo "papers-found=0" >> $GITHUB_OUTPUT
+          echo "No papers found"
+        fi
 
     - name: Upload collected data
       if: steps.data-collection.outputs.papers-found > 0
