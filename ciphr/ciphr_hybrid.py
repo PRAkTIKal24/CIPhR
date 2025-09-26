@@ -205,44 +205,73 @@ def main():
         with open(llm_results_path, 'r', encoding='utf-8') as f:
             content = f.read().strip()
         
-        # Try to parse as JSON array first (expected format from run-gemini-cli)
+        logging.info(f"LLM results file size: {len(content)} characters")
+        logging.info(f"Raw LLM results content preview: {content[:500]}...")
+        
+        # Handle completely empty results
+        if not content:
+            logging.error("LLM results file is completely empty!")
+            # Create fallback results
+            fallback_result = {q: "Error: Empty LLM response" for q in LLM_QUESTIONS}
+            llm_results = [json.dumps(fallback_result)] * len(papers_data)
+            combined_results = result_processor.combine_results(papers_data, llm_results, LLM_QUESTIONS)
+            output_file = result_processor.save_results(combined_results, LLM_QUESTIONS, args.output_filename)
+            logging.info(f"Created fallback results due to empty LLM response: {output_file}")
+            return
+        
+        # Parse individual results (now separated by ---PAPER--- from individual analysis)
         llm_results_parsed = []
         try:
             import json
             import re
             
-            # Look for JSON array in the content
-            json_match = re.search(r'\[.*\]', content, re.DOTALL)
-            if json_match:
-                json_str = json_match.group()
-                parsed_data = json.loads(json_str)
+            # First check if we have individual results separated by ---PAPER---
+            if "---PAPER---" in content:
+                logging.info("Found individual paper results separated by ---PAPER---")
+                individual_results = content.split("---PAPER---")
+                llm_results_parsed = [result.strip() for result in individual_results if result.strip()]
+                logging.info(f"Split into {len(llm_results_parsed)} individual results")
                 
-                if isinstance(parsed_data, list):
-                    # Convert each dict to a string representation for our existing processing
-                    llm_results_parsed = [json.dumps(item) if isinstance(item, dict) else str(item) for item in parsed_data]
-                else:
-                    # Single object, wrap in list
-                    llm_results_parsed = [json.dumps(parsed_data) if isinstance(parsed_data, dict) else str(parsed_data)]
+            # Fallback: try to parse as JSON array (batch processing)
+            elif content.strip().startswith('['):
+                logging.info("Attempting to parse as JSON array (batch processing)")
+                json_match = re.search(r'\[.*\]', content, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group()
+                    parsed_data = json.loads(json_str)
+                    
+                    if isinstance(parsed_data, list):
+                        llm_results_parsed = [json.dumps(item) if isinstance(item, dict) else str(item) for item in parsed_data]
+                        logging.info(f"Successfully parsed {len(llm_results_parsed)} LLM results from JSON array")
+                    else:
+                        llm_results_parsed = [json.dumps(parsed_data)]
+                        
+            # Single result case
             else:
-                # Fallback: treat as single result
+                logging.info("Treating as single result for all papers")
                 llm_results_parsed = [content]
                 
         except (json.JSONDecodeError, AttributeError) as e:
-            logging.warning(f"Could not parse LLM results as JSON: {e}")
-            # Fallback to simple splitting
+            logging.warning(f"Could not parse LLM results as structured data: {e}")
+            # Ultimate fallback - split by ---PAPER--- or use whole content
             if "---PAPER---" in content:
                 llm_results_parsed = content.split("---PAPER---")
             else:
                 llm_results_parsed = [content]
         
-        # Ensure we have the right number of results
+        # Final check - ensure we have the right number of results
         if len(llm_results_parsed) != len(papers_data):
-            logging.warning(f"Mismatch: {len(papers_data)} papers but {len(llm_results_parsed)} LLM results")
-            # Pad with empty results if needed
-            while len(llm_results_parsed) < len(papers_data):
-                llm_results_parsed.append("{}")
+            logging.warning(f"Final mismatch: {len(papers_data)} papers but {len(llm_results_parsed)} LLM results. Adjusting...")
+            if len(llm_results_parsed) < len(papers_data):
+                # Pad with empty results
+                while len(llm_results_parsed) < len(papers_data):
+                    llm_results_parsed.append('{"error": "No LLM result available"}')
+            else:
+                # Truncate excess results
+                llm_results_parsed = llm_results_parsed[:len(papers_data)]
         
         llm_results = llm_results_parsed
+        logging.info(f"Final LLM results count: {len(llm_results)} (matching {len(papers_data)} papers)")
         
         # Combine results
         combined_results = result_processor.combine_results(papers_data, llm_results, LLM_QUESTIONS)
