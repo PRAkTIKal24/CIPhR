@@ -1,5 +1,5 @@
 
-name: CIPhR Daily Research Ingestion
+name: CIPhR Daily Research Ingestion (Hybrid)
 
 on:
   schedule:
@@ -8,8 +8,10 @@ on:
   workflow_dispatch: # Allows manual triggering
 
 jobs:
-  ingest_research:
+  collect_data:
     runs-on: ubuntu-latest
+    outputs:
+      papers-found: ${{ steps.data-collection.outputs.papers-found }}
 
     steps:
     - name: Checkout repository
@@ -28,19 +30,135 @@ jobs:
         source .venv/bin/activate
         uv pip install -e .
 
-    - name: Run CIPhR tool
+    - name: Collect research data
+      id: data-collection
       env:
         FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
-        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       run: |
         export PATH="$HOME/.local/bin:$PATH"
         source .venv/bin/activate
-        uv run ciphr --output_dir output --output_filename hepex.md --tags hep-ex
+        
+        # Run data collection phase
+        uv run ciphr-hybrid --mode collect --output_dir output --output_filename hepex.md --tags hep-ex --verbose
+        
+        # Check if papers were found
+        if [ -f "output/papers_data.json" ]; then
+          papers_count=$(python -c "import json; data=json.load(open('output/papers_data.json')); print(len(data))")
+          echo "papers-found=$papers_count" >> $GITHUB_OUTPUT
+          echo "Found $papers_count papers to analyze"
+        else
+          echo "papers-found=0" >> $GITHUB_OUTPUT
+          echo "No papers found"
+        fi
 
-    - name: Upload research insights
+    - name: Upload collected data
+      if: steps.data-collection.outputs.papers-found > 0
       uses: actions/upload-artifact@v4
       with:
-        name: hep-ex
+        name: collected-data
+        path: |
+          output/papers_data.json
+          output/analysis_prompts.json
+
+  analyze_papers:
+    needs: collect_data
+    runs-on: ubuntu-latest
+    if: needs.collect_data.outputs.papers-found > 0
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Download collected data
+      uses: actions/download-artifact@v4
+      with:
+        name: collected-data
+        path: output/
+
+    - name: Analyze papers with Gemini
+      uses: 'google-github-actions/run-gemini-cli@v0'
+      with:
+        gemini_api_key: '${{ secrets.GEMINI_API_KEY }}'
+        prompt: |
+          You are analyzing physics research papers. I will provide you with paper data in JSON format, and you need to answer specific questions about each paper.
+
+          Please analyze each paper and respond with JSON format where each paper gets its own result object.
+
+          For each paper, answer these questions:
+          1. "What is the main physics phenomenon studied by this paper"
+          2. "Is this work related to dark matter searches? If yes, how?"
+          3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
+
+          Format your response as a JSON array where each element corresponds to a paper in the same order as provided. Each element should be a JSON object with the questions as keys and your answers as values.
+
+          Example format:
+          [
+            {
+              "What is the main physics phenomenon studied by this paper": "Dark matter direct detection",
+              "Is this work related to dark matter searches? If yes, how?": "Yes, this paper presents results from the XENON experiment",
+              "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Yes, XENON detector"
+            }
+          ]
+
+          Here is the papers data to analyze:
+
+          $(cat output/papers_data.json)
+
+    - name: Save LLM results
+      run: |
+        # Save the Gemini CLI output to a file for processing
+        echo "${{ steps.gemini-analysis.outputs.summary }}" > output/llm_results.txt
+        ls -la output/
+
+    - name: Upload analysis results
+      uses: actions/upload-artifact@v4
+      with:
+        name: analysis-results
+        path: |
+          output/papers_data.json
+          output/analysis_prompts.json
+          output/llm_results.txt
+
+  process_results:
+    needs: [collect_data, analyze_papers]
+    runs-on: ubuntu-latest
+    if: needs.collect_data.outputs.papers-found > 0
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install uv and dependencies
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+        export PATH="$HOME/.local/bin:$PATH"
+        uv venv
+        source .venv/bin/activate
+        uv pip install -e .
+
+    - name: Download analysis results
+      uses: actions/download-artifact@v4
+      with:
+        name: analysis-results
+        path: output/
+
+    - name: Process results and generate markdown
+      run: |
+        export PATH="$HOME/.local/bin:$PATH"
+        source .venv/bin/activate
+        
+        # Run result processing phase
+        uv run ciphr-hybrid --mode process --output_dir output --output_filename hepex.md --verbose
+
+    - name: Upload final insights
+      uses: actions/upload-artifact@v4
+      with:
+        name: hep-ex-insights
         path: output/hepex*.md
 
     - name: Commit and push changes (if any)
@@ -48,10 +166,7 @@ jobs:
         git config user.name github-actions
         git config user.email github-actions@github.com
         git add --force output/
-        git commit -m "Update research insights table" || echo "No changes to commit"
+        git commit -m "Update research insights table (hybrid approach)" || echo "No changes to commit"
         git push
-      # This step requires a PAT with 'contents' scope if the workflow is not triggered by a push event
-      # or if the repository is protected. For simplicity, assuming direct push for now.
-      # In a real scenario, consider using a GitHub App or a dedicated bot user for commits.
 
 
