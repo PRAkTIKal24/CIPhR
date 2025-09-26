@@ -47,9 +47,9 @@ jobs:
       run: |
         git config user.name github-actions
         git config user.email github-actions@github.com
-        git add -f output/
+        git add --force output/
         git commit -m "Update research insights table" || echo "No changes to commit"
-        git -f push
+        git push
       # This step requires a PAT with 'contents' scope if the workflow is not triggered by a push event
       # or if the repository is protected. For simplicity, assuming direct push for now.
       # In a real scenario, consider using a GitHub App or a dedicated bot user for commits.
