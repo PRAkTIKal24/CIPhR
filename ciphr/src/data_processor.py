@@ -12,15 +12,15 @@ logging.basicConfig(
 
 class DataProcessor:
     """Handles data collection and preparation for LLM analysis."""
-    
+
     def __init__(self, output_dir: str = "output"):
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
-    
+
     def extract_text_from_pdf(self, pdf_path: str) -> str | None:
         """Extracts text from a PDF using pypdf."""
         from pypdf import PdfReader
-        
+
         logging.info(f"Extracting text from PDF: {pdf_path} using pypdf.")
         try:
             reader = PdfReader(pdf_path)
@@ -32,20 +32,20 @@ class DataProcessor:
         except Exception as e:
             logging.error(f"Error extracting text from PDF {pdf_path}: {e}")
             return None
-    
+
     def collect_paper_data(self, papers: List) -> List[Dict]:
         """Collect and prepare paper data for LLM analysis."""
         results = []
-        
+
         for i, paper in enumerate(papers):
-            logging.info(f"Processing paper {i+1}/{len(papers)}: {paper.title}")
-            
+            logging.info(f"Processing paper {i + 1}/{len(papers)}: {paper.title}")
+
             # Get abstract content
             abstract_content = get_abstract_content(paper)
             if not abstract_content:
                 logging.warning(f"Could not get abstract for {paper.title}. Skipping.")
                 continue
-            
+
             # Download and extract PDF
             pdf_content = ""
             pdf_path = None
@@ -62,10 +62,12 @@ class DataProcessor:
                 if pdf_path and os.path.exists(pdf_path):
                     os.remove(pdf_path)
                     logging.info(f"Cleaned up temporary PDF: {pdf_path}")
-            
+
             # Combine content
-            combined_content = f"Abstract Content:\n{abstract_content}\n\nPDF Content:\n{pdf_content}"
-            
+            combined_content = (
+                f"Abstract Content:\n{abstract_content}\n\nPDF Content:\n{pdf_content}"
+            )
+
             # Prepare data structure
             paper_data = {
                 "title": paper.title,
@@ -78,22 +80,26 @@ class DataProcessor:
                 "updated": paper.updated.isoformat() if paper.updated else None,
                 "categories": paper.categories,
             }
-            
+
             results.append(paper_data)
-        
+
         return results
-    
-    def save_papers_data(self, papers_data: List[Dict], filename: str = "papers_data.json") -> str:
+
+    def save_papers_data(
+        self, papers_data: List[Dict], filename: str = "papers_data.json"
+    ) -> str:
         """Save papers data to JSON file for LLM processing."""
         filepath = os.path.join(self.output_dir, filename)
-        
-        with open(filepath, 'w', encoding='utf-8') as f:
+
+        with open(filepath, "w", encoding="utf-8") as f:
             json.dump(papers_data, f, indent=2, ensure_ascii=False)
-        
+
         logging.info(f"Saved {len(papers_data)} papers data to {filepath}")
         return filepath
-    
-    def create_analysis_prompts(self, questions: List[str], output_file: str = "analysis_prompts.json") -> str:
+
+    def create_analysis_prompts(
+        self, questions: List[str], output_file: str = "analysis_prompts.json"
+    ) -> str:
         """Create structured prompts for LLM analysis."""
         prompts_data = {
             "questions": questions,
@@ -106,13 +112,13 @@ Example format:
   "What is the main physics phenomenon studied by this paper": "Dark matter direct detection",
   "Is this work related to dark matter searches? If yes, how?": "Yes, this paper presents results from the XENON experiment searching for WIMP dark matter",
   "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Yes, XENON detector"
-}"""
+}""",
         }
-        
+
         filepath = os.path.join(self.output_dir, output_file)
-        with open(filepath, 'w', encoding='utf-8') as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             json.dump(prompts_data, f, indent=2, ensure_ascii=False)
-        
+
         logging.info(f"Created analysis prompts file: {filepath}")
         return filepath
 
