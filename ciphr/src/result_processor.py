@@ -111,12 +111,28 @@ class ResultProcessor:
         """Combine paper data with LLM analysis results."""
         combined_results = []
         
+        # Check if we have a single comprehensive LLM result that covers all papers
+        if len(llm_results) == 1 and len(papers_data) > 1:
+            logging.info("Attempting to parse single comprehensive LLM result for multiple papers")
+            comprehensive_result = self.parse_comprehensive_llm_result(llm_results[0], papers_data, questions)
+            if comprehensive_result:
+                return comprehensive_result
+        
+        # Process individual results
         for i, (paper_data, llm_output) in enumerate(zip(papers_data, llm_results)):
             if not llm_output.strip():
                 logging.warning(f"Empty LLM output for paper {i+1}: {paper_data['title']}")
                 llm_answers = {q: "Error or not found." for q in questions}
             else:
-                llm_answers = self.parse_llm_results(llm_output, questions)
+                try:
+                    llm_answers = self.parse_llm_results(llm_output, questions)
+                    # Check if all answers are empty or "Not found"
+                    if all(answer in ["Not found", "Error or not found.", ""] for answer in llm_answers.values()):
+                        logging.warning(f"All LLM answers empty for paper {i+1}, using fallback")
+                        llm_answers = {q: f"Error: Failed to parse LLM result for {paper_data['title'][:50]}..." for q in questions}
+                except Exception as e:
+                    logging.error(f"Error parsing LLM results for paper {i+1}: {e}")
+                    llm_answers = {q: f"Error: Exception during parsing - {str(e)[:100]}" for q in questions}
             
             result = {
                 "title": paper_data["title"],
@@ -132,6 +148,65 @@ class ResultProcessor:
             combined_results.append(result)
         
         return combined_results
+    
+    def parse_comprehensive_llm_result(self, llm_output: str, papers_data: List[Dict], questions: List[str]) -> List[Dict]:
+        """Parse a single LLM output that contains analysis for multiple papers."""
+        try:
+            import json
+            import re
+            
+            # Look for JSON array in the output
+            json_match = re.search(r'\[.*\]', llm_output, re.DOTALL)
+            if json_match:
+                json_str = json_match.group()
+                parsed_data = json.loads(json_str)
+                
+                if isinstance(parsed_data, list) and len(parsed_data) == len(papers_data):
+                    logging.info(f"Successfully parsed comprehensive result for {len(parsed_data)} papers")
+                    
+                    results = []
+                    for i, (paper_data, analysis) in enumerate(zip(papers_data, parsed_data)):
+                        if isinstance(analysis, dict):
+                            # Map the analysis results to our questions
+                            llm_answers = {}
+                            for question in questions:
+                                answer = None
+                                
+                                # Try exact match first
+                                if question in analysis:
+                                    answer = analysis[question]
+                                else:
+                                    # Try partial matching
+                                    question_lower = question.lower().strip()
+                                    for key, value in analysis.items():
+                                        key_lower = key.lower().strip()
+                                        if question_lower == key_lower or any(word in key_lower for word in question_lower.split()[:3]):
+                                            answer = value
+                                            break
+                                
+                                llm_answers[question] = str(answer).strip() if answer else "Not found"
+                        else:
+                            # Fallback for non-dict analysis
+                            llm_answers = {q: "Error parsing result" for q in questions}
+                        
+                        result = {
+                            "title": paper_data["title"],
+                            "arxiv_url": paper_data["arxiv_url"],
+                            "llm_answers": llm_answers,
+                            "metadata": {
+                                "authors": paper_data.get("authors", []),
+                                "published": paper_data.get("published"),
+                                "categories": paper_data.get("categories", [])
+                            }
+                        }
+                        results.append(result)
+                    
+                    return results
+                    
+        except (json.JSONDecodeError, AttributeError) as e:
+            logging.warning(f"Could not parse comprehensive LLM result: {e}")
+        
+        return None  # Fallback to individual processing
     
     def generate_markdown_table(self, results: List[Dict], questions: List[str], include_header: bool = True) -> str:
         """Generate markdown table from analysis results."""
