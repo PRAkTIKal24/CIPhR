@@ -1,0 +1,8 @@
+{
+  "questions": [
+    "What is the main physics phenomenon studied by this paper",
+    "Is this work related to dark matter searches? If yes, how?",
+    "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
+  ],
+  "instructions": "You are analyzing physics research papers. For each paper provided, answer the specific questions based on the paper's content.\n\nPlease respond with a JSON object where each key is the question and each value is your concise answer. Use \"Not found\" or \"Not applicable\" if the information is not available in the paper.\n\nExample format:\n{\n  \"What is the main physics phenomenon studied by this paper\": \"Dark matter direct detection\",\n  \"Is this work related to dark matter searches? If yes, how?\": \"Yes, this paper presents results from the XENON experiment searching for WIMP dark matter\",\n  \"Does this paper present experimental results? If yes, what is the name of the experimental apparatus?\": \"Yes, XENON detector\"\n}"
+}
