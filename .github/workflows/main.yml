@@ -30,10 +30,12 @@ jobs:
         source .venv/bin/activate
         uv pip install -e .
 
-      - name: Run Data Collection
-        run: |
-          cd ${{ github.workspace }}
-          uv run ciphr-hybrid --mode collect --max_results 5 --verbose    - name: Upload collected data
+    - name: Run Data Collection
+      run: |
+        cd ${{ github.workspace }}
+        uv run ciphr-hybrid --mode collect --max_results 5 --verbose
+
+    - name: Upload collected data
       if: steps.data-collection.outputs.papers-found > 0
       uses: actions/upload-artifact@v4
       with:
