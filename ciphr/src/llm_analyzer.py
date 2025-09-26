@@ -26,7 +26,24 @@ class LLMAnalyzer:
             raise ValueError("GEMINI_API_KEY is required.")
 
         self.firecrawl_app = FirecrawlApp(api_key=FIRECRAWL_API_KEY)
-        genai.configure(api_key=GEMINI_API_KEY)
+        
+        # Configure to use Google AI API explicitly, not Vertex AI
+        # Prevent auto-detection of GCP environment that leads to Vertex AI usage
+        os.environ['GOOGLE_API_USE_CLIENT_CERTIFICATE'] = 'false'
+        os.environ['GOOGLE_CLOUD_PROJECT'] = ''  # Clear any GCP project detection
+        
+        # Clear any potential Vertex AI environment variables
+        for env_var in ['GOOGLE_APPLICATION_CREDENTIALS', 'GCLOUD_PROJECT']:
+            if env_var in os.environ:
+                del os.environ[env_var]
+        
+        genai.configure(
+            api_key=GEMINI_API_KEY,
+            transport='rest'  # Force REST API instead of gRPC to avoid Vertex AI detection
+        )
+        
+        logging.info("Google AI configured with REST transport to avoid Vertex AI detection")
+        
         self.model = genai.GenerativeModel(
             "gemini-1.5-flash"
         )  # Using 1.5 Flash as requested
@@ -61,6 +78,7 @@ Question: {question}
 
 Answer:"""
             try:
+                logging.debug(f"Attempting to generate content for question: {question}")
                 response = self.model.generate_content(prompt)
                 answers[question] = response.text.strip()
                 logging.info(f"Answered question: {question}")
@@ -68,6 +86,9 @@ Answer:"""
                 logging.error(
                     f"Error analyzing paper with LLM for question '{question}': {e}"
                 )
+                logging.error(f"Error type: {type(e).__name__}")
+                if hasattr(e, 'code'):
+                    logging.error(f"Error code: {e.code}")
                 answers[question] = "Error or not found."
         return answers
 
