@@ -30,28 +30,10 @@ jobs:
         source .venv/bin/activate
         uv pip install -e .
 
-    - name: Collect research data
-      id: data-collection
-      env:
-        FIRECRAWL_API_KEY: ${{ secrets.FIRECRAWL_API_KEY }}
-      run: |
-        export PATH="$HOME/.local/bin:$PATH"
-        source .venv/bin/activate
-        
-        # Run data collection phase
-        uv run ciphr-hybrid --mode collect --output_dir output --output_filename hepex.md --tags hep-ex --verbose
-        
-        # Check if papers were found
-        if [ -f "output/papers_data.json" ]; then
-          papers_count=$(python -c "import json; data=json.load(open('output/papers_data.json')); print(len(data))")
-          echo "papers-found=$papers_count" >> $GITHUB_OUTPUT
-          echo "Found $papers_count papers to analyze"
-        else
-          echo "papers-found=0" >> $GITHUB_OUTPUT
-          echo "No papers found"
-        fi
-
-    - name: Upload collected data
+      - name: Run Data Collection
+        run: |
+          cd ${{ github.workspace }}
+          uv run ciphr-hybrid --mode collect --max_results 5 --verbose    - name: Upload collected data
       if: steps.data-collection.outputs.papers-found > 0
       uses: actions/upload-artifact@v4
       with:
@@ -75,40 +57,213 @@ jobs:
         name: collected-data
         path: output/
 
-    - name: Analyze papers with Gemini
+    - name: Analyze papers individually with Gemini
+      run: |
+        # Process each paper individually (original approach)
+        python << 'EOF'
+        import json
+        import os
+
+        # Load papers data
+        with open('output/papers_data.json', 'r') as f:
+            papers = json.load(f)
+
+        print(f"Processing {len(papers)} papers individually...")
+
+        # Create individual results array
+        all_results = []
+
+        for i, paper in enumerate(papers):
+            print(f"Preparing paper {i+1}/{len(papers)}: {paper['title'][:50]}...")
+            
+            # Create individual paper file for this analysis
+            individual_paper = {
+                "title": paper["title"],
+                "abstract": paper.get("abstract", ""),
+                "combined_content": paper.get("combined_content", "")[:2000],  # Limit content size
+                "arxiv_url": paper["arxiv_url"]
+            }
+            
+            with open(f'paper_{i+1}.json', 'w') as f:
+                json.dump(individual_paper, f, indent=2)
+            
+            print(f"Created paper_{i+1}.json for individual analysis")
+
+        print("All papers prepared for individual analysis")
+        EOF
+
+    - name: Analyze Paper 1
+      id: analyze-1
+      if: needs.collect_data.outputs.papers-found >= 1
       uses: 'google-github-actions/run-gemini-cli@v0'
       with:
         gemini_api_key: '${{ secrets.GEMINI_API_KEY }}'
         prompt: |
-          You are analyzing physics research papers. I will provide you with paper data in JSON format, and you need to answer specific questions about each paper.
+          Analyze this physics research paper and answer the following questions. Respond with a JSON object with the exact question text as keys.
 
-          Please analyze each paper and respond with JSON format where each paper gets its own result object.
-
-          For each paper, answer these questions:
+          Questions:
           1. "What is the main physics phenomenon studied by this paper"
           2. "Is this work related to dark matter searches? If yes, how?"
           3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
 
-          Format your response as a JSON array where each element corresponds to a paper in the same order as provided. Each element should be a JSON object with the questions as keys and your answers as values.
+          Response format:
+          {
+            "What is the main physics phenomenon studied by this paper": "Your answer here",
+            "Is this work related to dark matter searches? If yes, how?": "Your answer here",
+            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here"
+          }
 
-          Example format:
-          [
-            {
-              "What is the main physics phenomenon studied by this paper": "Dark matter direct detection",
-              "Is this work related to dark matter searches? If yes, how?": "Yes, this paper presents results from the XENON experiment",
-              "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Yes, XENON detector"
-            }
-          ]
+          Paper to analyze:
+          $(cat paper_1.json)
 
-          Here is the papers data to analyze:
+    - name: Analyze Paper 2
+      id: analyze-2
+      if: needs.collect_data.outputs.papers-found >= 2
+      uses: 'google-github-actions/run-gemini-cli@v0'
+      with:
+        gemini_api_key: '${{ secrets.GEMINI_API_KEY }}'
+        prompt: |
+          Analyze this physics research paper and answer the following questions. Respond with a JSON object with the exact question text as keys.
 
-          $(cat output/papers_data.json)
+          Questions:
+          1. "What is the main physics phenomenon studied by this paper"
+          2. "Is this work related to dark matter searches? If yes, how?"
+          3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
 
-    - name: Save LLM results
+          Response format:
+          {
+            "What is the main physics phenomenon studied by this paper": "Your answer here",
+            "Is this work related to dark matter searches? If yes, how?": "Your answer here",
+            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here"
+          }
+
+          Paper to analyze:
+          $(cat paper_2.json)
+
+    - name: Analyze Paper 3
+      id: analyze-3
+      if: needs.collect_data.outputs.papers-found >= 3
+      uses: 'google-github-actions/run-gemini-cli@v0'
+      with:
+        gemini_api_key: '${{ secrets.GEMINI_API_KEY }}'
+        prompt: |
+          Analyze this physics research paper and answer the following questions. Respond with a JSON object with the exact question text as keys.
+
+          Questions:
+          1. "What is the main physics phenomenon studied by this paper"
+          2. "Is this work related to dark matter searches? If yes, how?"
+          3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
+
+          Response format:
+          {
+            "What is the main physics phenomenon studied by this paper": "Your answer here",
+            "Is this work related to dark matter searches? If yes, how?": "Your answer here",
+            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here"
+          }
+
+          Paper to analyze:
+          $(cat paper_3.json)
+
+    - name: Analyze Paper 4
+      id: analyze-4
+      if: needs.collect_data.outputs.papers-found >= 4
+      uses: 'google-github-actions/run-gemini-cli@v0'
+      with:
+        gemini_api_key: '${{ secrets.GEMINI_API_KEY }}'
+        prompt: |
+          Analyze this physics research paper and answer the following questions. Respond with a JSON object with the exact question text as keys.
+
+          Questions:
+          1. "What is the main physics phenomenon studied by this paper"
+          2. "Is this work related to dark matter searches? If yes, how?"
+          3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
+
+          Response format:
+          {
+            "What is the main physics phenomenon studied by this paper": "Your answer here",
+            "Is this work related to dark matter searches? If yes, how?": "Your answer here",
+            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here"
+          }
+
+          Paper to analyze:
+          $(cat paper_4.json)
+
+    - name: Analyze Paper 5
+      id: analyze-5
+      if: needs.collect_data.outputs.papers-found >= 5
+      uses: 'google-github-actions/run-gemini-cli@v0'
+      with:
+        gemini_api_key: '${{ secrets.GEMINI_API_KEY }}'
+        prompt: |
+          Analyze this physics research paper and answer the following questions. Respond with a JSON object with the exact question text as keys.
+
+          Questions:
+          1. "What is the main physics phenomenon studied by this paper"
+          2. "Is this work related to dark matter searches? If yes, how?"
+          3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
+
+          Response format:
+          {
+            "What is the main physics phenomenon studied by this paper": "Your answer here",
+            "Is this work related to dark matter searches? If yes, how?": "Your answer here",
+            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here"
+          }
+
+          Paper to analyze:
+          $(cat paper_5.json)
+
+    - name: Combine individual results
       run: |
-        # Save the Gemini CLI output to a file for processing
-        echo "${{ steps.gemini-analysis.outputs.summary }}" > output/llm_results.txt
-        ls -la output/
+        # Combine all individual analysis results
+        python << 'EOF'
+        import json
+        import os
+
+        # Load papers count
+        with open('output/papers_data.json', 'r') as f:
+            papers_count = len(json.load(f))
+
+        print(f"Combining results for {papers_count} papers")
+
+        # Collect individual results
+        results = []
+        for i in range(1, papers_count + 1):
+            result_var = f"steps.analyze-{i}.outputs.summary"
+            print(f"Processing result {i}")
+            
+            # Get the result from environment or create error result
+            if i == 1:
+                result = '''${{ steps.analyze-1.outputs.summary }}'''
+            elif i == 2:
+                result = '''${{ steps.analyze-2.outputs.summary }}'''
+            elif i == 3:
+                result = '''${{ steps.analyze-3.outputs.summary }}'''
+            elif i == 4:
+                result = '''${{ steps.analyze-4.outputs.summary }}'''
+            elif i == 5:
+                result = '''${{ steps.analyze-5.outputs.summary }}'''
+            else:
+                result = '{"error": "No analysis performed"}'
+            
+            if not result or result.strip() == '':
+                result = '{"error": "Empty LLM response"}'
+            
+            results.append(result)
+            print(f"Added result {i}: {result[:100]}...")
+
+        # Save combined results
+        with open('output/llm_results.txt', 'w') as f:
+            f.write("---PAPER---".join(results))
+
+        print(f"Saved combined results for {len(results)} papers")
+        
+        # Debug output
+        print("=== Combined Results Preview ===")
+        with open('output/llm_results.txt', 'r') as f:
+            content = f.read()
+            print(content[:500] + "..." if len(content) > 500 else content)
+        print("=== End Preview ===")
+        EOF
 
     - name: Upload analysis results
       uses: actions/upload-artifact@v4
