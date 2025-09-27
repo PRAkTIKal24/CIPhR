@@ -1,4 +1,3 @@
-
 name: CIPhR Daily Research Ingestion (Hybrid)
 
 on:
@@ -16,6 +15,9 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        # Change: Checkout the 'production' branch instead of the default branch
+        ref: 'production'
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -63,6 +65,9 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        # Change: Checkout the 'production' branch
+        ref: 'production'
 
     - name: Download collected data
       uses: actions/download-artifact@v4
@@ -295,6 +300,9 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      with:
+        # Change: Checkout the 'production' branch
+        ref: 'production'
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -335,6 +343,5 @@ jobs:
         git config user.email github-actions@github.com
         git add --force output/
         git commit -m "Update research insights table (hybrid approach)" || echo "No changes to commit"
-        git push
-
-
+        # Change: Explicitly push the current commit to the 'production' branch
+        git push origin HEAD:production
