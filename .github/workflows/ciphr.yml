@@ -16,8 +16,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        # Change: Checkout the 'production' branch instead of the default branch
-        ref: 'production'
+        ssh-key: ${{secrets.PROD_BOT_KEY}}
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -66,8 +65,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        # Change: Checkout the 'production' branch
-        ref: 'production'
+        ssh-key: ${{secrets.PROD_BOT_KEY}}
 
     - name: Download collected data
       uses: actions/download-artifact@v4
@@ -301,8 +299,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        # Change: Checkout the 'production' branch
-        ref: 'production'
+        ssh-key: ${{secrets.PROD_BOT_KEY}}
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -344,4 +341,4 @@ jobs:
         git add --force output/
         git commit -m "Update research insights table (hybrid approach)" || echo "No changes to commit"
         # Change: Explicitly push the current commit to the 'production' branch
-        git push origin HEAD:production
+        git push origin main
