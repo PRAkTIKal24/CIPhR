@@ -48,7 +48,6 @@ def extract_existing_paper_titles(file_path: str) -> set[str]:
 
         # Extract titles from markdown table rows
         # Format: Title | [Link](arxiv_url) | ...
-        import re
         
         lines = content.split('\n')
         titles = set()
