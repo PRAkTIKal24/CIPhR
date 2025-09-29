@@ -1,6 +1,6 @@
 [project]
 name = "ciphr"
-version = "0.3.8"
+version = "0.4.1"
 description = "Crawl and Ingest Physics Research"
 authors = [{ name = "Pratik Jawahar" }]
 requires-python = ">=3.10, <3.13"
