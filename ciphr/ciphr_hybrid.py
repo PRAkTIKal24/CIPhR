@@ -48,50 +48,54 @@ def extract_existing_paper_titles(file_path: str) -> set[str]:
 
         # Extract titles from markdown table rows
         # Format: Title | [Link](arxiv_url) | ...
-        
-        lines = content.split('\n')
+
+        lines = content.split("\n")
         titles = set()
-        
+
         for line in lines:
             # Skip header and separator lines
-            if '|' not in line or '---' in line or 'Paper Title' in line:
+            if "|" not in line or "---" in line or "Paper Title" in line:
                 continue
-                
+
             # Split by | and get first column (title)
-            parts = line.split('|')
+            parts = line.split("|")
             if len(parts) >= 2:
                 title = parts[0].strip()
                 if title:  # Only add non-empty titles
                     # Normalize title for comparison (strip whitespace, convert to lowercase)
                     normalized_title = title.strip().lower()
                     titles.add(normalized_title)
-        
+
         return titles
     except Exception as e:
         logging.warning(f"Error extracting paper titles from {file_path}: {e}")
         return set()
 
 
-def filter_new_papers(papers: list, existing_links: set[str], existing_titles: set[str] = None) -> list:
+def filter_new_papers(
+    papers: list, existing_links: set[str], existing_titles: set[str] = None
+) -> list:
     """Filter out papers that already exist in the output file based on arXiv links and titles."""
     new_papers = []
     skipped_count = 0
-    
+
     if existing_titles is None:
         existing_titles = set()
 
     for paper in papers:
         paper_link = paper.entry_id
         paper_title_normalized = paper.title.strip().lower()
-        
+
         # Check for duplicates by both arxiv link and title
         is_duplicate_link = paper_link in existing_links
         is_duplicate_title = paper_title_normalized in existing_titles
-        
+
         if is_duplicate_link or is_duplicate_title:
             skipped_count += 1
             reason = "link" if is_duplicate_link else "title"
-            logging.info(f"Skipping duplicate paper ({reason}): {paper.title} ({paper_link})")
+            logging.info(
+                f"Skipping duplicate paper ({reason}): {paper.title} ({paper_link})"
+            )
         else:
             new_papers.append(paper)
 

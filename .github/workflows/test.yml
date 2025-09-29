@@ -88,6 +88,10 @@ jobs:
         uv pip install -e .
         uv pip install --group dev
 
+    - name: Format with ruff
+      run: |
+        uv run ruff format .
+        
     - name: Lint with ruff
       run: |
         uv run ruff check --fix .
