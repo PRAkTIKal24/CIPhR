@@ -35,7 +35,7 @@ jobs:
       id: data-collection
       run: |
         cd ${{ github.workspace }}
-        uv run ciphr-hybrid --mode collect --max_results 5 --verbose
+        uv run ciphr-hybrid --mode collect --max_results 5 --output_filename hepex.md --tags hep-ex --verbose
         
         # Set output based on whether papers_data.json was created and has content
         if [ -f "output/papers_data.json" ]; then
@@ -338,7 +338,7 @@ jobs:
       run: |
         git config user.name github-actions
         git config user.email github-actions@github.com
-        git add --force output/
+        # Only commit the final markdown file, not the intermediate JSON/txt files
+        git add --force output/hepex*.md
         git commit -m "Update research insights table (hybrid approach)" || echo "No changes to commit"
-        # Change: Explicitly push the current commit to the 'production' branch
-        git push origin main
+        git push origin HEAD

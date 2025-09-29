@@ -1,6 +1,10 @@
 .DS_Store
 __pycache__/
-output/
+# Ignore temporary workflow files but keep final markdown outputs
+output/papers_data.json
+output/analysis_prompts.json
+output/llm_results.txt
+output/*.pdf
 shell_scripts/
 uv.lock
 .env
