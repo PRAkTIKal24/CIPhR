@@ -37,18 +37,64 @@ def extract_existing_arxiv_links(file_path: str) -> set[str]:
         return set()
 
 
-def filter_new_papers(papers: list, existing_links: set[str]) -> list:
-    """Filter out papers that already exist in the output file based on arXiv links."""
+def extract_existing_paper_titles(file_path: str) -> set[str]:
+    """Extract all paper titles from existing markdown file for more robust duplicate detection."""
+    if not os.path.exists(file_path):
+        return set()
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+
+        # Extract titles from markdown table rows
+        # Format: Title | [Link](arxiv_url) | ...
+        import re
+        
+        lines = content.split('\n')
+        titles = set()
+        
+        for line in lines:
+            # Skip header and separator lines
+            if '|' not in line or '---' in line or 'Paper Title' in line:
+                continue
+                
+            # Split by | and get first column (title)
+            parts = line.split('|')
+            if len(parts) >= 2:
+                title = parts[0].strip()
+                if title:  # Only add non-empty titles
+                    # Normalize title for comparison (strip whitespace, convert to lowercase)
+                    normalized_title = title.strip().lower()
+                    titles.add(normalized_title)
+        
+        return titles
+    except Exception as e:
+        logging.warning(f"Error extracting paper titles from {file_path}: {e}")
+        return set()
+
+
+def filter_new_papers(papers: list, existing_links: set[str], existing_titles: set[str] = None) -> list:
+    """Filter out papers that already exist in the output file based on arXiv links and titles."""
     new_papers = []
     skipped_count = 0
+    
+    if existing_titles is None:
+        existing_titles = set()
 
     for paper in papers:
         paper_link = paper.entry_id
-        if paper_link not in existing_links:
-            new_papers.append(paper)
-        else:
+        paper_title_normalized = paper.title.strip().lower()
+        
+        # Check for duplicates by both arxiv link and title
+        is_duplicate_link = paper_link in existing_links
+        is_duplicate_title = paper_title_normalized in existing_titles
+        
+        if is_duplicate_link or is_duplicate_title:
             skipped_count += 1
-            logging.info(f"Skipping duplicate paper: {paper.title} ({paper_link})")
+            reason = "link" if is_duplicate_link else "title"
+            logging.info(f"Skipping duplicate paper ({reason}): {paper.title} ({paper_link})")
+        else:
+            new_papers.append(paper)
 
     if skipped_count > 0:
         logging.info(f"Skipped {skipped_count} duplicate papers")
@@ -133,10 +179,12 @@ def main():
             final_output_path
         )
 
-        # Get existing links to avoid duplicates
+        # Get existing links and titles to avoid duplicates
         existing_links = set()
+        existing_titles = set()
         if should_append:
             existing_links = extract_existing_arxiv_links(final_output_path)
+            existing_titles = extract_existing_paper_titles(final_output_path)
             logging.info(f"Found {len(existing_links)} existing papers in output file")
 
         logging.info(
@@ -148,10 +196,10 @@ def main():
         arxiv_query = f"cat:{arxiv_tags_formatted}"
         papers = search_arxiv(query=arxiv_query, max_results=args.max_results)
 
-        # Filter out duplicates
-        if should_append and existing_links:
+        # Filter out duplicates (by both links and titles)
+        if should_append and (existing_links or existing_titles):
             original_count = len(papers)
-            papers = filter_new_papers(papers, existing_links)
+            papers = filter_new_papers(papers, existing_links, existing_titles)
             logging.info(
                 f"Processing {len(papers)} new papers (filtered {original_count - len(papers)} duplicates)"
             )
