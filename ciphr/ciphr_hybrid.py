@@ -9,6 +9,9 @@ from .src.arxiv_scraper import search_arxiv
 from .src.data_processor import DataProcessor
 from .src.result_processor import ResultProcessor
 
+# Constants for parsing
+PAPER_SEPARATOR = "---PAPER---"
+
 logging.basicConfig(
     filename="logs.log",
     level=logging.INFO,
@@ -51,10 +54,20 @@ def extract_existing_paper_titles(file_path: str) -> set[str]:
 
         lines = content.split("\n")
         titles = set()
-
+        
+        header_skipped = False
         for line in lines:
-            # Skip header and separator lines
-            if "|" not in line or "---" in line or "Paper Title" in line:
+            # Skip lines that are not table rows 
+            if "|" not in line:
+                continue
+            
+            # Skip separator lines (contain dashes)
+            if "-" in line and all(c in "|-: " for c in line.strip()):
+                continue
+                
+            # Skip the header row (first table row after separator)
+            if not header_skipped:
+                header_skipped = True
                 continue
 
             # Split by | and get first column (title)
@@ -296,15 +309,15 @@ def main():
             )
             return
 
-        # Parse individual results (now separated by ---PAPER--- from individual analysis)
+        # Parse individual results (now separated by PAPER_SEPARATOR from individual analysis)
         llm_results_parsed = []
         try:
             import re
 
-            # First check if we have individual results separated by ---PAPER---
-            if "---PAPER---" in content:
-                logging.info("Found individual paper results separated by ---PAPER---")
-                individual_results = content.split("---PAPER---")
+            # First check if we have individual results separated by PAPER_SEPARATOR
+            if PAPER_SEPARATOR in content:
+                logging.info(f"Found individual paper results separated by {PAPER_SEPARATOR}")
+                individual_results = content.split(PAPER_SEPARATOR)
                 llm_results_parsed = [
                     result.strip() for result in individual_results if result.strip()
                 ]
@@ -336,9 +349,9 @@ def main():
 
         except (json.JSONDecodeError, AttributeError) as e:
             logging.warning(f"Could not parse LLM results as structured data: {e}")
-            # Ultimate fallback - split by ---PAPER--- or use whole content
-            if "---PAPER---" in content:
-                llm_results_parsed = content.split("---PAPER---")
+            # Ultimate fallback - split by PAPER_SEPARATOR or use whole content
+            if PAPER_SEPARATOR in content:
+                llm_results_parsed = content.split(PAPER_SEPARATOR)
             else:
                 llm_results_parsed = [content]
 

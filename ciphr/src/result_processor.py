@@ -260,8 +260,10 @@ class ResultProcessor:
         markdown = ""
 
         if include_header:
-            # Prepare headers
-            headers = ["Paper Title", "arXiv Link"] + [
+            # Prepare headers - using constants to avoid hardcoding
+            TITLE_COLUMN = "Paper Title"
+            LINK_COLUMN = "arXiv Link"
+            headers = [TITLE_COLUMN, LINK_COLUMN] + [
                 q.replace("\n", " ") for q in questions
             ]
             markdown += " | ".join(headers) + "\n"
