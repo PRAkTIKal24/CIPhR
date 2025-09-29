@@ -341,4 +341,4 @@ jobs:
         # Only commit the final markdown file, not the intermediate JSON/txt files
         git add --force output/hepex*.md
         git commit -m "Update research insights table (hybrid approach)" || echo "No changes to commit"
-        git push origin main
+        git push origin HEAD
