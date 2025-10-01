@@ -13,6 +13,7 @@ dependencies = [
     "python-dotenv",
     "pypdf",
     "requests",
+    "pypandoc",
 ]
 
 [project.scripts]
