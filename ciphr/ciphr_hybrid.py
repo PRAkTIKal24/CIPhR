@@ -54,17 +54,17 @@ def extract_existing_paper_titles(file_path: str) -> set[str]:
 
         lines = content.split("\n")
         titles = set()
-        
+
         header_skipped = False
         for line in lines:
-            # Skip lines that are not table rows 
+            # Skip lines that are not table rows
             if "|" not in line:
                 continue
-            
+
             # Skip separator lines (contain dashes)
             if "-" in line and all(c in "|-: " for c in line.strip()):
                 continue
-                
+
             # Skip the header row (first table row after separator)
             if not header_skipped:
                 header_skipped = True
@@ -316,7 +316,9 @@ def main():
 
             # First check if we have individual results separated by PAPER_SEPARATOR
             if PAPER_SEPARATOR in content:
-                logging.info(f"Found individual paper results separated by {PAPER_SEPARATOR}")
+                logging.info(
+                    f"Found individual paper results separated by {PAPER_SEPARATOR}"
+                )
                 individual_results = content.split(PAPER_SEPARATOR)
                 llm_results_parsed = [
                     result.strip() for result in individual_results if result.strip()

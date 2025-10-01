@@ -1,5 +1,10 @@
 name: CIPhR Daily Research Ingestion (Hybrid)
 
+# NOTE: This workflow requires the following secrets to be set:
+# - PROD_BOT_KEY: SSH key for pushing to repository
+# - GEMINI_API_KEY: Google Gemini API key for LLM analysis
+# - MM_WEBHOOK_URL: Mattermost incoming webhook URL for ML4DM notifications
+
 on:
   schedule:
     # Runs every day at 00:00 UTC
@@ -121,12 +126,14 @@ jobs:
           1. "What is the main physics phenomenon studied by this paper"
           2. "Is this work related to dark matter searches? If yes, how?"
           3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
+          4. "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper"
 
           Response format:
           {
             "What is the main physics phenomenon studied by this paper": "Your answer here",
             "Is this work related to dark matter searches? If yes, how?": "Your answer here",
-            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here"
+            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here",
+            "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper": "Your answer here"
           }
 
           Paper to analyze:
@@ -145,12 +152,14 @@ jobs:
           1. "What is the main physics phenomenon studied by this paper"
           2. "Is this work related to dark matter searches? If yes, how?"
           3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
+          4. "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper"
 
           Response format:
           {
             "What is the main physics phenomenon studied by this paper": "Your answer here",
             "Is this work related to dark matter searches? If yes, how?": "Your answer here",
-            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here"
+            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here",
+            "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper": "Your answer here"
           }
 
           Paper to analyze:
@@ -169,12 +178,14 @@ jobs:
           1. "What is the main physics phenomenon studied by this paper"
           2. "Is this work related to dark matter searches? If yes, how?"
           3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
+          4. "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper"
 
           Response format:
           {
             "What is the main physics phenomenon studied by this paper": "Your answer here",
             "Is this work related to dark matter searches? If yes, how?": "Your answer here",
-            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here"
+            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here",
+            "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper": "Your answer here"
           }
 
           Paper to analyze:
@@ -193,12 +204,14 @@ jobs:
           1. "What is the main physics phenomenon studied by this paper"
           2. "Is this work related to dark matter searches? If yes, how?"
           3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
+          4. "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper"
 
           Response format:
           {
             "What is the main physics phenomenon studied by this paper": "Your answer here",
             "Is this work related to dark matter searches? If yes, how?": "Your answer here",
-            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here"
+            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here",
+            "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper": "Your answer here"
           }
 
           Paper to analyze:
@@ -217,12 +230,14 @@ jobs:
           1. "What is the main physics phenomenon studied by this paper"
           2. "Is this work related to dark matter searches? If yes, how?"
           3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
+          4. "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper"
 
           Response format:
           {
             "What is the main physics phenomenon studied by this paper": "Your answer here",
             "Is this work related to dark matter searches? If yes, how?": "Your answer here",
-            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here"
+            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here",
+            "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper": "Your answer here"
           }
 
           Paper to analyze:
@@ -327,6 +342,108 @@ jobs:
         
         # Run result processing phase
         uv run ciphr-hybrid --mode process --output_dir output --output_filename hepex.md --verbose
+
+    - name: Check for ML4DM papers and prepare Mattermost notification
+      id: ml4dm-check
+      run: |
+        export PATH="$HOME/.local/bin:$PATH"
+        source .venv/bin/activate
+        
+        # Run ML4DM analysis
+        uv run python << 'EOF'
+        import json
+        import os
+        import sys
+        from ciphr.src.mattermost_notifier import check_ml4dm_papers, MattermostNotifier
+
+        # Load papers data
+        with open('output/papers_data.json', 'r') as f:
+            papers_data = json.load(f)
+
+        # Load LLM results
+        with open('output/llm_results.txt', 'r') as f:
+            content = f.read().strip()
+
+        # Parse LLM results (same logic as in ciphr_hybrid.py)
+        PAPER_SEPARATOR = "---PAPER---"
+        if PAPER_SEPARATOR in content:
+            llm_results = content.split(PAPER_SEPARATOR)
+            llm_results = [result.strip() for result in llm_results if result.strip()]
+        else:
+            llm_results = [content]
+
+        # Ensure we have the right number of results
+        if len(llm_results) < len(papers_data):
+            while len(llm_results) < len(papers_data):
+                llm_results.append('{"error": "No LLM result available"}')
+        elif len(llm_results) > len(papers_data):
+            llm_results = llm_results[:len(papers_data)]
+
+        print(f"Analyzing {len(papers_data)} papers for ML4DM usage...")
+
+        # Check for ML4DM papers
+        ml4dm_papers = check_ml4dm_papers(papers_data, llm_results)
+
+        # Save results
+        with open('output/ml4dm_papers.json', 'w') as f:
+            json.dump(ml4dm_papers, f, indent=2)
+
+        # Set output for next step
+        has_ml4dm = len(ml4dm_papers) > 0
+        print(f"Found {len(ml4dm_papers)} ML4DM papers")
+        
+        # Write to GitHub Actions output
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            f.write(f"has-ml4dm-papers={'true' if has_ml4dm else 'false'}\n")
+            f.write(f"ml4dm-count={len(ml4dm_papers)}\n")
+
+        if has_ml4dm:
+            print("ML4DM papers found - will post to Mattermost")
+        else:
+            print("No ML4DM papers found - skipping Mattermost notification")
+        EOF
+
+    - name: Post to Mattermost if ML4DM papers found
+      if: steps.ml4dm-check.outputs.has-ml4dm-papers == 'true'
+      env:
+        MM_WEBHOOK_URL: ${{ secrets.MM_WEBHOOK_URL }}
+      run: |
+        export PATH="$HOME/.local/bin:$PATH"
+        source .venv/bin/activate
+        
+        uv run python << 'EOF'
+        import json
+        import os
+        import sys
+        from ciphr.src.mattermost_notifier import MattermostNotifier
+
+        # Get webhook URL from environment
+        webhook_url = os.getenv('MM_WEBHOOK_URL')
+        if not webhook_url:
+            print("ERROR: MM_WEBHOOK_URL not found in environment")
+            sys.exit(1)
+
+        # Load ML4DM papers
+        with open('output/ml4dm_papers.json', 'r') as f:
+            ml4dm_papers = json.load(f)
+
+        if not ml4dm_papers:
+            print("No ML4DM papers to post")
+            sys.exit(0)
+
+        # Create repository link to the output file
+        repo_link = "https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/output/hepex.md"
+
+        # Initialize notifier and post
+        notifier = MattermostNotifier(webhook_url)
+        success = notifier.post_ml4dm_findings(ml4dm_papers, repo_link)
+
+        if success:
+            print(f"Successfully posted {len(ml4dm_papers)} ML4DM papers to Mattermost")
+        else:
+            print("Failed to post to Mattermost")
+            sys.exit(1)
+        EOF
 
     - name: Upload final insights
       uses: actions/upload-artifact@v4
