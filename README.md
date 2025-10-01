@@ -28,6 +28,45 @@ CIPhR is an automated tool designed to scrape particle physics research papers f
 - **✅ Hybrid Workflow**: Robust production approach using `google-github-actions/run-gemini-cli` for reliable authentication and individual paper processing to prevent empty results.
 - **Individual Paper Processing**: Processes each paper separately to ensure reliable LLM analysis results.
 - **Duplicate Detection**: Automatically skips papers that have already been processed.
+- **🤖 Mattermost Integration**: Automatically posts notifications to Mattermost channels when papers using machine learning for dark matter research are discovered.
+
+## 🚀 Mattermost ML4DM Bot Integration
+
+CIPhR now includes intelligent Mattermost integration that automatically detects papers using **Machine Learning for Dark Matter (ML4DM)** research and posts notifications to your Mattermost channels.
+
+### Features
+
+- **Smart Detection**: Analyzes papers with an additional ML4DM flag question: *"Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper"*
+- **Conditional Posting**: Only posts to Mattermost when ML4DM papers are found (avoids spam)
+- **Single Daily Summary**: Posts one consolidated message per workflow run, not per paper
+- **Rich Formatting**: Beautiful messages with emojis, markdown tables, and links to full analysis
+- **ML Technique Extraction**: Highlights specific machine learning methods used in each paper
+
+### Example Mattermost Message
+
+```
+🚀 🤖 New ML4DM papers on arXiv today! Found 2 papers using ML techniques for dark matter searches.
+
+| Paper Title | arXiv Link | ML Techniques |
+|---|---|---|
+| Machine Learning for Dark Matter Detection at the LHC | [Link](http://arxiv.org/abs/2310.12345) | convolutional neural networks, random forest classifiers, gradient boosting |
+| Neural Networks for Dark Matter Direct Detection | [Link](http://arxiv.org/abs/2310.67890) | deep neural networks, support vector machines |
+
+📊 [View full analysis table here](https://github.com/PRAkTIKal24/CIPhR/blob/main/output/hepex.md)
+```
+
+### Setup
+
+1. **Get Mattermost Webhook URL**: Create an incoming webhook in your Mattermost channel settings
+2. **Add to GitHub Secrets**: Add `MM_WEBHOOK_URL` as a repository secret with your webhook URL
+3. **Automatic Operation**: The workflow automatically detects ML4DM papers and posts when found
+
+### Technical Details
+
+- **No Impact on Main Output**: The ML4DM question is only used for Mattermost detection, not included in the main research table
+- **Robust Detection**: Uses advanced pattern matching to identify ML usage in LLM responses
+- **Error Handling**: Gracefully handles webhook failures without affecting the main workflow
+- **Efficient Processing**: Minimal overhead - only processes papers that pass the ML4DM filter
 
 ## Project Structure
 
@@ -43,7 +82,8 @@ CIPhR/
 │   │   ├── arxiv_scraper.py      # Handles arXiv searching and PDF downloading
 │   │   ├── llm_analyzer.py       # Original LLM analysis (legacy)
 │   │   ├── data_processor.py     # 🆕 Data collection for hybrid workflow
-│   │   └── result_processor.py   # 🆕 Result processing for hybrid workflow
+│   │   ├── result_processor.py   # 🆕 Result processing for hybrid workflow
+│   │   └── mattermost_notifier.py # 🤖 ML4DM detection and Mattermost posting
 │   ├── ciphr.py                  # Original single-phase workflow
 │   └── ciphr_hybrid.py           # 🆕 Hybrid workflow orchestrator
 ├── output/                       # Generated research insights and intermediate files
@@ -170,6 +210,7 @@ The current `.github/workflows/main.yml` uses the hybrid approach with three pha
 - ✅ Better logging and debugging capabilities
 - ✅ Maintained by Google for long-term stability
 - ✅ Results separated by `---PAPER---` delimiter for reliable parsing
+- 🤖 Intelligent ML4DM detection and Mattermost notifications
 
 **Schedule:** 
 - Runs every day at 00:00 UTC
@@ -179,15 +220,16 @@ The current `.github/workflows/main.yml` uses the hybrid approach with three pha
 
 The original single-phase workflow is still available but may experience authentication issues in GitHub Actions environments due to GCP environment auto-detection.
 
-### Setting up API Keys in GitHub Secrets
+### Setting up API Keys and Webhooks in GitHub Secrets
 
-For the GitHub Actions workflow to access your API keys, you must add them as repository secrets:
+For the GitHub Actions workflow to access your API keys and Mattermost webhook, you must add them as repository secrets:
 
 1.  Go to your GitHub repository.
 2.  Navigate to `Settings` > `Secrets and variables` > `Actions`.
 3.  Click `New repository secret`.
 4.  Add `GEMINI_API_KEY` with your [Google AI Studio API key](https://aistudio.google.com/app/apikey) as its value.
 5.  Add `FIRECRAWL_API_KEY` with your Firecrawl API key as its value (optional, for enhanced scraping).
+6.  🤖 Add `MM_WEBHOOK_URL` with your Mattermost incoming webhook URL (optional, for ML4DM notifications).
 
 > 🔑 **Note**: The hybrid workflow only requires `GEMINI_API_KEY` for core functionality. The `google-github-actions/run-gemini-cli` action handles authentication robustly without the issues experienced by direct SDK usage.
 
