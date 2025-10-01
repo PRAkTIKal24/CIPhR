@@ -354,7 +354,6 @@ jobs:
         import json
         import os
         import sys
-        sys.path.append('/workspaces/CIPhR')
         from ciphr.src.mattermost_notifier import check_ml4dm_papers, MattermostNotifier
 
         # Load papers data
@@ -416,7 +415,6 @@ jobs:
         import json
         import os
         import sys
-        sys.path.append('/workspaces/CIPhR')
         from ciphr.src.mattermost_notifier import MattermostNotifier
 
         # Get webhook URL from environment
