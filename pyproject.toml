@@ -12,6 +12,7 @@ dependencies = [
     "arxiv",
     "python-dotenv",
     "pypdf",
+    "requests",
 ]
 
 [project.scripts]
