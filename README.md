@@ -24,6 +24,8 @@ CIPhR is an automated tool designed to scrape particle physics research papers f
 - **📊 Intelligent Tables**: Generates markdown tables with chronological sorting (newest first)
 - **🔄 Multiple Modes**: Local development, data collection, processing, and CI workflows
 - **🛡️ Robust Processing**: Error handling, duplicate detection, and question-based file management
+- **📝 Smart Content Processing**: Automatic reference stripping and conclusions extraction for optimal LLM analysis
+- **🎯 Enhanced Paper Coverage**: 50K character limit ensures complete paper analysis (15x improvement)
 - **🌐 WordPress Integration**: Automatic publishing to websites with responsive tables
 - **💬 Mattermost ML4DM Bot**: Smart notifications for machine learning + dark matter papers
 - **⚡ GitHub Actions Ready**: Automated daily execution with reliable authentication
