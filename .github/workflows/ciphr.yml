@@ -45,7 +45,7 @@ jobs:
       id: data-collection
       run: |
         cd ${{ github.workspace }}
-        uv run ciphr-hybrid --mode collect --max_results 5 --output_filename hepex.md --tags hep-ex --verbose
+        uv run ciphr --mode collect --max_results 5 --output_filename hepex.md --tags hep-ex --verbose
         
         # Set output based on whether papers_data.json was created and has content
         if [ -f "output/papers_data.json" ]; then
@@ -350,7 +350,7 @@ jobs:
         source .venv/bin/activate
         
         # Run result processing phase
-        uv run ciphr-hybrid --mode process --output_dir output --output_filename hepex.md --verbose
+        uv run ciphr --mode process --output_dir output --output_filename hepex.md --verbose
 
     - name: Check for ML4DM papers and prepare Mattermost notification
       id: ml4dm-check
