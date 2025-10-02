@@ -461,8 +461,13 @@ def main():
         for i, paper_data in enumerate(papers_data, 1):
             logging.info(f"Analyzing paper {i}/{len(papers_data)}: {paper_data['title'][:50]}...")
             
-            # Create content for analysis
-            content = f"Title: {paper_data['title']}\n\nAbstract: {paper_data['abstract']}\n\nContent: {paper_data.get('combined_content', '')[:MAX_CONTENT_LENGTH_FOR_LLM]}"
+            # Create content for analysis using enhanced processing
+            content = data_processor.process_content_for_llm(
+                title=paper_data['title'],
+                abstract=paper_data['abstract'], 
+                content=paper_data.get('combined_content', ''),
+                max_content_length=MAX_CONTENT_LENGTH_FOR_LLM
+            )
             
             try:
                 # Analyze with local LLM
