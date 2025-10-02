@@ -195,7 +195,7 @@ Example format:
                     conclusions = conclusions[:MAX_CONCLUSIONS_LENGTH] + "..."
 
                 if conclusions:
-                    section_name = match.group(1)
+                    section_name = match.group(1) if match.group(1) else "section"
                     logging.debug(
                         f"Extracted {section_name} section: {len(conclusions)} chars"
                     )
