@@ -298,7 +298,9 @@ def main():
             content = f.read().strip()
 
         logging.info(f"LLM results file size: {len(content)} characters")
-        logging.info(f"Raw LLM results content preview: {content[:LOG_PREVIEW_LENGTH]}...")
+        logging.info(
+            f"Raw LLM results content preview: {content[:LOG_PREVIEW_LENGTH]}..."
+        )
 
         # Handle completely empty results
         if not content:
@@ -398,7 +400,7 @@ def main():
 
     if args.mode == "local":
         logging.info("=== LOCAL MODE - COMPLETE WORKFLOW ===")
-        
+
         # Initialize processors
         data_processor = DataProcessor(args.output_dir)
         result_processor = ResultProcessor(args.output_dir)
@@ -457,34 +459,41 @@ def main():
         # Analyze papers with LLM (local API key usage)
         logging.info("=== ANALYZING PAPERS WITH LOCAL LLM ===")
         llm_results = []
-        
+
         for i, paper_data in enumerate(papers_data, 1):
-            logging.info(f"Analyzing paper {i}/{len(papers_data)}: {paper_data['title'][:50]}...")
-            
+            logging.info(
+                f"Analyzing paper {i}/{len(papers_data)}: {paper_data['title'][:50]}..."
+            )
+
             # Create content for analysis using enhanced processing
             content = data_processor.process_content_for_llm(
-                title=paper_data['title'],
-                abstract=paper_data['abstract'], 
-                content=paper_data.get('combined_content', ''),
-                max_content_length=MAX_CONTENT_LENGTH_FOR_LLM
+                title=paper_data["title"],
+                abstract=paper_data["abstract"],
+                content=paper_data.get("combined_content", ""),
+                max_content_length=MAX_CONTENT_LENGTH_FOR_LLM,
             )
-            
+
             try:
                 # Analyze with local LLM
-                analysis_result = llm_analyzer.analyze_paper_with_llm(content, LLM_QUESTIONS)
-                
+                analysis_result = llm_analyzer.analyze_paper_with_llm(
+                    content, LLM_QUESTIONS
+                )
+
                 # Convert dict result to JSON string format (to match other modes)
                 if isinstance(analysis_result, dict):
                     llm_results.append(json.dumps(analysis_result))
                 else:
                     llm_results.append(str(analysis_result))
-                    
+
                 logging.info(f"Successfully analyzed paper {i}")
-                
+
             except Exception as e:
                 logging.error(f"Error analyzing paper {i}: {e}")
                 # Create fallback result
-                fallback_result = {q: f"Error during analysis: {str(e)[:ERROR_MESSAGE_LENGTH]}" for q in LLM_QUESTIONS}
+                fallback_result = {
+                    q: f"Error during analysis: {str(e)[:ERROR_MESSAGE_LENGTH]}"
+                    for q in LLM_QUESTIONS
+                }
                 llm_results.append(json.dumps(fallback_result))
 
         # Combine results using the same logic as other modes
