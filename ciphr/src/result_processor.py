@@ -348,19 +348,58 @@ class ResultProcessor:
         filename = self.get_output_filename(base_filename, questions)
         output_path = os.path.join(self.output_dir, filename)
 
-        # Check if we should append
-        should_append = filename == base_filename and os.path.exists(output_path)
+        # Check if we should prepend to existing file
+        should_prepend = filename == base_filename and os.path.exists(output_path)
 
-        if should_append:
-            # Append mode: don't include header, just add new rows
-            markdown_table = self.generate_markdown_table(
-                results, questions, include_header=False
-            )
-            with open(output_path, "a", encoding="utf-8") as f:
-                f.write(markdown_table)
-            logging.info(
-                f"Appended {len(results)} new results to existing file: {output_path}"
-            )
+        if should_prepend:
+            # Prepend mode: add new results to the top of existing table
+            # First read existing content
+            with open(output_path, "r", encoding="utf-8") as f:
+                existing_content = f.read()
+
+            # Split existing content into header and data
+            existing_lines = existing_content.strip().split("\n")
+            if len(existing_lines) >= 2:
+                header_line = existing_lines[0]
+                separator_line = existing_lines[1]
+                existing_data_lines = (
+                    existing_lines[2:] if len(existing_lines) > 2 else []
+                )
+
+                # Generate new data rows (without header)
+                new_markdown_table = self.generate_markdown_table(
+                    results, questions, include_header=False
+                )
+                new_data_lines = (
+                    new_markdown_table.strip().split("\n")
+                    if new_markdown_table.strip()
+                    else []
+                )
+
+                # Combine: header + separator + new data + existing data
+                combined_lines = (
+                    [header_line, separator_line] + new_data_lines + existing_data_lines
+                )
+                combined_content = "\n".join(combined_lines) + "\n"
+
+                # Write the combined content
+                with open(output_path, "w", encoding="utf-8") as f:
+                    f.write(combined_content)
+
+                logging.info(
+                    f"Prepended {len(results)} new results to top of existing file: {output_path}"
+                )
+            else:
+                # Existing file is malformed, treat as new file
+                logging.warning(
+                    f"Existing file {output_path} appears malformed, creating new file"
+                )
+                markdown_table = self.generate_markdown_table(
+                    results, questions, include_header=True
+                )
+                with open(output_path, "w", encoding="utf-8") as f:
+                    f.write(markdown_table)
+                logging.info(f"Created new file (replacing malformed): {output_path}")
         else:
             # New file mode: include full table with header
             markdown_table = self.generate_markdown_table(

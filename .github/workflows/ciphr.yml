@@ -3,7 +3,12 @@ name: CIPhR Daily Research Ingestion (Hybrid)
 # NOTE: This workflow requires the following secrets to be set:
 # - PROD_BOT_KEY: SSH key for pushing to repository
 # - GEMINI_API_KEY: Google Gemini API key for LLM analysis
-# - MM_WEBHOOK_URL: Mattermost incoming webhook URL for ML4DM notifications
+# - MM_WEBHOOK_URL: Mattermost incoming webhook URL for ML4DM notifications (optional)
+# 
+# WordPress Integration (optional - workflow skips gracefully if not configured):
+# - WP_USERNAME: WordPress username for iDMEU integration (required for WordPress)
+# - WP_APP_PASSWORD: WordPress application password for iDMEU integration (required for WordPress) 
+# - WP_SITE_URL: WordPress site URL (optional, defaults to https://www.idmeu.org)
 
 on:
   schedule:
@@ -328,6 +333,10 @@ jobs:
         uv venv
         source .venv/bin/activate
         uv pip install -e .
+        
+        # Install pandoc for robust markdown to HTML conversion
+        sudo apt-get update
+        sudo apt-get install -y pandoc
 
     - name: Download analysis results
       uses: actions/download-artifact@v4
@@ -443,6 +452,59 @@ jobs:
         else:
             print("Failed to post to Mattermost")
             sys.exit(1)
+        EOF
+
+    - name: Publish to WordPress (iDMEU)
+      env:
+        WP_SITE_URL: ${{ secrets.WP_SITE_URL }}
+        WP_USERNAME: ${{ secrets.WP_USERNAME }}
+        WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+      run: |
+        export PATH="$HOME/.local/bin:$PATH"
+        source .venv/bin/activate
+        
+        # Check if WordPress credentials are available
+        if [ -z "$WP_SITE_URL" ] || [ -z "$WP_USERNAME" ] || [ -z "$WP_APP_PASSWORD" ]; then
+          echo "⚠️ WordPress credentials not configured - skipping WordPress publishing"
+          echo "To enable WordPress publishing, add WP_SITE_URL, WP_USERNAME, and WP_APP_PASSWORD secrets"
+          exit 0
+        fi
+        
+        # Count papers for description
+        PAPER_COUNT=$(tail -n +3 output/hepex.md | grep -c "^[^|]*|" || echo "0")
+        export PAPER_COUNT
+        
+        uv run python << 'EOF'
+        import os
+        import sys
+        from ciphr.src.wordpress_publisher import publish_research_insights
+
+        # Get WordPress credentials from environment
+        site_url = os.getenv('WP_SITE_URL', 'https://www.idmeu.org')
+        username = os.getenv('WP_USERNAME')
+        app_password = os.getenv('WP_APP_PASSWORD')
+        paper_count = int(os.getenv('PAPER_COUNT', '0'))
+
+        if not username or not app_password:
+            print("ERROR: WordPress credentials not found in environment")
+            sys.exit(1)
+
+        # Publish to WordPress
+        success = publish_research_insights(
+            markdown_file_path='output/hepex.md',
+            site_url=site_url,
+            username=username,
+            app_password=app_password,
+            paper_count=paper_count
+        )
+
+        if success:
+            print(f"✅ Successfully published research insights to {site_url}")
+            print("📝 The iDMEU website has been updated with the latest research table")
+        else:
+            print("❌ Failed to publish to WordPress")
+            print("The workflow will continue, but manual WordPress update may be needed")
+            # Don't fail the workflow for WordPress issues
         EOF
 
     - name: Upload final insights
