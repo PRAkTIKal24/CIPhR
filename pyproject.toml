@@ -1,6 +1,6 @@
 [project]
 name = "ciphr"
-version = "0.4.3"
+version = "0.6.5"
 description = "Crawl and Ingest Physics Research"
 authors = [{ name = "Pratik Jawahar" }]
 requires-python = ">=3.10, <3.13"
@@ -17,8 +17,8 @@ dependencies = [
 ]
 
 [project.scripts]
-ciphr = "ciphr.ciphr:main"
-ciphr-hybrid = "ciphr.ciphr_hybrid:main"
+ciphr = "ciphr.ciphr_hybrid:main"
+ciphr-legacy = "ciphr.ciphr:main"
 
 [dependency-groups]
 dev = [

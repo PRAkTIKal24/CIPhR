@@ -1,9 +1,11 @@
 import json
 import logging
 import os
-from typing import Dict, List
+import re
+from typing import Dict, List, Optional
 
 from .arxiv_scraper import download_pdf, get_abstract_content, search_arxiv
+from ..config.config import STRIP_REFERENCES, MAX_CONCLUSIONS_LENGTH
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -63,10 +65,11 @@ class DataProcessor:
                     os.remove(pdf_path)
                     logging.info(f"Cleaned up temporary PDF: {pdf_path}")
 
-            # Combine content
-            combined_content = (
+            # Combine content and strip references
+            raw_combined_content = (
                 f"Abstract Content:\n{abstract_content}\n\nPDF Content:\n{pdf_content}"
             )
+            combined_content = self.strip_references_section(raw_combined_content)
 
             # Prepare data structure
             paper_data = {
@@ -121,6 +124,138 @@ Example format:
 
         logging.info(f"Created analysis prompts file: {filepath}")
         return filepath
+
+    def strip_references_section(self, text: str) -> str:
+        """Remove references/bibliography sections from paper text."""
+        if not STRIP_REFERENCES:
+            return text
+
+        # Common reference section patterns (case-insensitive)
+        ref_patterns = [
+            r"\n\s*REFERENCES\s*\n",
+            r"\n\s*References\s*\n",
+            r"\n\s*BIBLIOGRAPHY\s*\n",
+            r"\n\s*Bibliography\s*\n",
+            r"\n\s*REFERENCE LIST\s*\n",
+            r"\n\s*Reference List\s*\n",
+        ]
+
+        for pattern in ref_patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                # Return text up to the reference section
+                ref_start = match.start()
+                stripped_text = text[:ref_start].strip()
+                logging.debug(
+                    f"Stripped references section. Original: {len(text)} chars, After: {len(stripped_text)} chars"
+                )
+                return stripped_text
+
+        return text
+
+    def extract_conclusions_section(self, text: str) -> Optional[str]:
+        """Extract conclusions section from paper text."""
+        # Common conclusion section patterns (case-insensitive, with optional numbering)
+        conclusion_patterns = [
+            r"\n\s*(?:\d+\.?\s+)?(Conclusions?):?\s*\n",
+            r"\n\s*(?:\d+\.?\s+)?(Discussion(?:s?(?:\s+and\s+Conclusions?)?)?):?\s*\n",
+            r"\n\s*(?:\d+\.?\s+)?(Summary(?:\s+and\s+Conclusions?)?):?\s*\n",
+            r"\n\s*(?:\d+\.?\s+)?(Concluding\s+Remarks?):?\s*\n",
+            r"\n\s*(?:\d+\.?\s+)?(Final\s+Remarks?):?\s*\n",
+            r"\n\s*(?:\d+\.?\s+)?(Results?\s+and\s+Discussions?):?\s*\n",
+            r"\n\s*(?:\d+\.?\s+)?(Outlook):?\s*\n",
+        ]
+
+        for pattern in conclusion_patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                section_start = match.end()
+
+                # Find the end of the section (next section header or end of text)
+                # Look for next numbered section or end
+                next_section_patterns = [
+                    r"\n\s*\d+\.?\s+[A-Z][^.\n]*\n",  # Next numbered section
+                    r"\n\s*(?:REFERENCES?|BIBLIOGRAPHY|ACKNOWLEDGMENTS?|APPENDIX)\s*\n",  # Special sections
+                ]
+
+                section_end = len(text)  # Default to end of text
+                for next_pattern in next_section_patterns:
+                    next_match = re.search(
+                        next_pattern, text[section_start:], re.IGNORECASE
+                    )
+                    if next_match:
+                        section_end = section_start + next_match.start()
+                        break
+
+                # Extract and clean the conclusions section
+                conclusions = text[section_start:section_end].strip()
+
+                # Limit length
+                if len(conclusions) > MAX_CONCLUSIONS_LENGTH:
+                    conclusions = conclusions[:MAX_CONCLUSIONS_LENGTH] + "..."
+
+                if conclusions:
+                    section_name = match.group(1) or "section"
+                    logging.debug(
+                        f"Extracted {section_name} section: {len(conclusions)} chars"
+                    )
+                    return conclusions
+
+        return None
+
+    def process_content_for_llm(
+        self, title: str, abstract: str, content: str, max_content_length: int
+    ) -> str:
+        """
+        Process and organize content for LLM analysis.
+
+        For papers exceeding max_content_length:
+        - Order: Title -> Abstract -> Conclusions -> Main Content (truncated)
+
+        For papers within limit:
+        - Order: Title -> Abstract -> Main Content (full, already includes conclusions)
+        """
+        # Always strip references first
+        content_no_refs = self.strip_references_section(content)
+
+        # Check if we need special processing (content exceeds limit)
+        if len(content_no_refs) > max_content_length:
+            # Extract conclusions before truncating
+            conclusions = self.extract_conclusions_section(content_no_refs)
+
+            if conclusions:
+                # Calculate remaining space for main content
+                conclusions_header = "\n\n[CONCLUSIONS SECTION]:\n"
+                conclusions_content = conclusions_header + conclusions
+                remaining_space = max_content_length - len(conclusions_content)
+
+                # Truncate main content to fit
+                main_content = content_no_refs[: max(0, remaining_space)]
+
+                # Assemble final content: Title + Abstract + Conclusions + Main Content
+                processed_content = f"Title: {title}\n\nAbstract: {abstract}{conclusions_content}\n\n[MAIN CONTENT]:\n{main_content}"
+
+                logging.info(
+                    f"Long paper processing: Main content {len(main_content)} chars + Conclusions {len(conclusions)} chars"
+                )
+            else:
+                # No conclusions found, just truncate
+                main_content = content_no_refs[:max_content_length]
+                processed_content = (
+                    f"Title: {title}\n\nAbstract: {abstract}\n\nContent: {main_content}"
+                )
+
+                logging.debug("No conclusions section found, using standard truncation")
+        else:
+            # Paper fits within limit, use standard format
+            processed_content = (
+                f"Title: {title}\n\nAbstract: {abstract}\n\nContent: {content_no_refs}"
+            )
+            logging.debug(
+                f"Standard processing: Content fits within {max_content_length} char limit"
+            )
+
+        return processed_content
 
 
 if __name__ == "__main__":

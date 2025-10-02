@@ -4,9 +4,17 @@ import logging
 import os
 import sys
 
-from .config.config import ARXIV_TAGS, LLM_QUESTIONS, MAX_ARXIV_RESULTS
+from .config.config import (
+    ARXIV_TAGS,
+    LLM_QUESTIONS,
+    MAX_ARXIV_RESULTS,
+    MAX_CONTENT_LENGTH_FOR_LLM,
+    LOG_PREVIEW_LENGTH,
+    ERROR_MESSAGE_LENGTH,
+)
 from .src.arxiv_scraper import search_arxiv
 from .src.data_processor import DataProcessor
+from .src.llm_analyzer import LLMAnalyzer
 from .src.result_processor import ResultProcessor
 
 # Constants for parsing
@@ -149,9 +157,9 @@ def main():
     parser.add_argument(
         "--mode",
         type=str,
-        choices=["collect", "process", "full"],
-        default="full",
-        help="Mode: 'collect' (data collection only), 'process' (process existing results), 'full' (both phases)",
+        choices=["collect", "process", "full", "local"],
+        default="local",
+        help="Mode: 'collect' (data collection only), 'process' (process existing results), 'full' (CI workflow - expects external LLM analysis), 'local' (complete local workflow with API keys)",
     )
     parser.add_argument(
         "--llm_results_file",
@@ -290,7 +298,9 @@ def main():
             content = f.read().strip()
 
         logging.info(f"LLM results file size: {len(content)} characters")
-        logging.info(f"Raw LLM results content preview: {content[:500]}...")
+        logging.info(
+            f"Raw LLM results content preview: {content[:LOG_PREVIEW_LENGTH]}..."
+        )
 
         # Handle completely empty results
         if not content:
@@ -387,6 +397,118 @@ def main():
 
         logging.info("=== PROCESSING COMPLETE ===")
         logging.info(f"Final results saved to: {output_file}")
+
+    if args.mode == "local":
+        logging.info("=== LOCAL MODE - COMPLETE WORKFLOW ===")
+
+        # Initialize processors
+        data_processor = DataProcessor(args.output_dir)
+        result_processor = ResultProcessor(args.output_dir)
+        llm_analyzer = LLMAnalyzer()
+
+        # Determine final output filename and check for duplicates
+        final_filename = result_processor.get_output_filename(
+            args.output_filename, LLM_QUESTIONS
+        )
+        final_output_path = os.path.join(args.output_dir, final_filename)
+        should_append = final_filename == args.output_filename and os.path.exists(
+            final_output_path
+        )
+
+        # Get existing links and titles to avoid duplicates
+        existing_links = set()
+        existing_titles = set()
+        if should_append:
+            existing_links = extract_existing_arxiv_links(final_output_path)
+            existing_titles = extract_existing_paper_titles(final_output_path)
+            logging.info(f"Found {len(existing_links)} existing papers in output file")
+
+        logging.info(
+            f"Starting local workflow with tags: {args.tags}, max_results: {args.max_results}"
+        )
+
+        # Search arXiv
+        arxiv_tags_formatted = args.tags.replace(",", " OR cat:")
+        arxiv_query = f"cat:{arxiv_tags_formatted}"
+        papers = search_arxiv(query=arxiv_query, max_results=args.max_results)
+
+        # Filter out duplicates (by both links and titles)
+        if should_append and (existing_links or existing_titles):
+            original_count = len(papers)
+            papers = filter_new_papers(papers, existing_links, existing_titles)
+            logging.info(
+                f"Processing {len(papers)} new papers (filtered {original_count - len(papers)} duplicates)"
+            )
+        else:
+            logging.info(f"Processing {len(papers)} papers")
+
+        if not papers:
+            if should_append:
+                logging.info("No new papers found. Nothing to process.")
+            else:
+                logging.info("No papers found to process.")
+            return
+
+        # Collect paper data
+        papers_data = data_processor.collect_paper_data(papers)
+
+        if not papers_data:
+            logging.info("No paper data collected. Exiting.")
+            return
+
+        # Analyze papers with LLM (local API key usage)
+        logging.info("=== ANALYZING PAPERS WITH LOCAL LLM ===")
+        llm_results = []
+
+        for i, paper_data in enumerate(papers_data, 1):
+            logging.info(
+                f"Analyzing paper {i}/{len(papers_data)}: {paper_data['title'][:50]}..."
+            )
+
+            # Create content for analysis using enhanced processing
+            content = data_processor.process_content_for_llm(
+                title=paper_data["title"],
+                abstract=paper_data["abstract"],
+                content=paper_data.get("combined_content", ""),
+                max_content_length=MAX_CONTENT_LENGTH_FOR_LLM,
+            )
+
+            try:
+                # Analyze with local LLM
+                analysis_result = llm_analyzer.analyze_paper_with_llm(
+                    content, LLM_QUESTIONS
+                )
+
+                # Convert dict result to JSON string format (to match other modes)
+                if isinstance(analysis_result, dict):
+                    llm_results.append(json.dumps(analysis_result))
+                else:
+                    llm_results.append(str(analysis_result))
+
+                logging.info(f"Successfully analyzed paper {i}")
+
+            except Exception as e:
+                logging.error(f"Error analyzing paper {i}: {e}")
+                # Create fallback result
+                fallback_result = {
+                    q: f"Error during analysis: {str(e)[:ERROR_MESSAGE_LENGTH]}"
+                    for q in LLM_QUESTIONS
+                }
+                llm_results.append(json.dumps(fallback_result))
+
+        # Combine results using the same logic as other modes
+        combined_results = result_processor.combine_results(
+            papers_data, llm_results, LLM_QUESTIONS
+        )
+
+        # Save final markdown (using prepend logic)
+        output_file = result_processor.save_results(
+            combined_results, LLM_QUESTIONS, args.output_filename
+        )
+
+        logging.info("=== LOCAL MODE COMPLETE ===")
+        logging.info(f"Successfully processed {len(papers_data)} papers")
+        logging.info(f"Results saved to: {output_file}")
 
 
 if __name__ == "__main__":

@@ -4,6 +4,8 @@ import os
 from datetime import datetime
 from typing import Dict, List
 
+from ..config.config import ERROR_MESSAGE_LENGTH
+
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
@@ -159,7 +161,7 @@ class ResultProcessor:
                 except Exception as e:
                     logging.error(f"Error parsing LLM results for paper {i + 1}: {e}")
                     llm_answers = {
-                        q: f"Error: Exception during parsing - {str(e)[:100]}"
+                        q: f"Error: Exception during parsing - {str(e)[:ERROR_MESSAGE_LENGTH]}"
                         for q in questions
                     }
 
