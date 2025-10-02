@@ -11,28 +11,95 @@
 
 # CIPhR: Crawl and Ingest Physics Research
 
-> 🚀 **Status**: Production ready with hybrid workflow ✅  
-> 🔧 **Latest**: Individual paper processing prevents empty LLM results  
-> 📅 **Updated**: September 2025 - All authentication and workflow issues resolved
+> 🚀 **Status**: Production ready with unified workflow ✅  
+> 🔧 **Latest**: Unified command structure with local and CI modes  
+> 📅 **Updated**: October 2025 - Modernized with local mode and enhanced features
 
-CIPhR is an automated tool designed to scrape particle physics research papers from arXiv, extract specific information using Large Language Model (LLM) analysis, and generate a living markdown table with research insights. This tool is built with Python, managed by `uv`, and designed for easy deployment with GitHub Actions that smartly append to output files without duplicating entries.
+CIPhR is an automated tool designed to scrape particle physics research papers from arXiv, extract specific information using Large Language Model (LLM) analysis, and generate living markdown tables with research insights. This tool is built with Python, managed by `uv`, and supports both local development and automated CI/CD workflows.
 
 ## Features
 
-- **arXiv Scraping**: Search and download physics papers from arXiv based on specified tags (e.g., `hep-ph`).
-- **Firecrawl Integration**: Utilizes Firecrawl to scrape abstract pages for additional context.
-- **LLM Analysis**: Employs Google Gemini 1.5 Flash to answer user-defined questions about the paper content.
-- **Markdown Table Output**: Generates a concise markdown table summarizing the extracted information, including a citation to the paper link.
-- **GitHub Actions Ready**: Configured for daily automated execution via GitHub Actions.
-- **Temporary Storage**: Downloads PDFs to temporary storage and deletes them after processing to manage disk space.
-- **✅ Hybrid Workflow**: Robust production approach using `google-github-actions/run-gemini-cli` for reliable authentication and individual paper processing to prevent empty results.
-- **Individual Paper Processing**: Processes each paper separately to ensure reliable LLM analysis results.
-- **Duplicate Detection**: Automatically skips papers that have already been processed.
-- **🤖 Mattermost Integration**: Automatically posts notifications to Mattermost channels when papers using machine learning for dark matter research are discovered.
+- **🔍 arXiv Integration**: Search and download physics papers with smart duplicate detection
+- **🤖 LLM Analysis**: Uses Google Gemini to answer customizable questions about papers
+- **📊 Intelligent Tables**: Generates markdown tables with chronological sorting (newest first)
+- **🔄 Multiple Modes**: Local development, data collection, processing, and CI workflows
+- **🛡️ Robust Processing**: Error handling, duplicate detection, and question-based file management
+- **🌐 WordPress Integration**: Automatic publishing to websites with responsive tables
+- **💬 Mattermost ML4DM Bot**: Smart notifications for machine learning + dark matter papers
+- **⚡ GitHub Actions Ready**: Automated daily execution with reliable authentication
 
-## 🚀 Mattermost ML4DM Bot Integration
+## Quick Start
 
-CIPhR now includes intelligent Mattermost integration that automatically detects papers using **Machine Learning for Dark Matter (ML4DM)** research and posts notifications to your Mattermost channels.
+### 🏠 Local Usage (Recommended for Development)
+
+```bash
+# Install CIPhR
+uv pip install -e .
+
+# Set up API keys in .env file
+FIRECRAWL_API_KEY=your_firecrawl_api_key
+GEMINI_API_KEY=your_gemini_api_key
+
+# Run complete local workflow (default mode)
+uv run ciphr --tags hep-ex --max_results 5 --output_filename physics_papers.md
+
+# Same as above (explicit local mode)
+uv run ciphr --mode local --tags hep-ex --max_results 5
+```
+
+### ⚙️ Available Modes
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| **`local`** | Complete workflow with API keys | Local development, testing |
+| `collect` | Data collection only | Preparing data for external LLM analysis |
+| `process` | Process existing LLM results | After GitHub Actions LLM analysis |
+| `full` | CI workflow (expects `run-gemini-cli`) | GitHub Actions automation |
+
+### � Command Options
+
+```bash
+uv run ciphr [OPTIONS]
+
+Options:
+  --mode {local,collect,process,full}  Workflow mode (default: local)
+  --tags TAGS                          arXiv categories (e.g., hep-ex,hep-ph)
+  --max_results N                      Maximum papers to process (default: 5)
+  --output_filename FILE               Output markdown file
+  --output_dir DIR                     Output directory (default: output)
+  --verbose                           Enable detailed logging
+```
+
+## 🔧 Installation
+
+1. **Clone the repository**:
+   ```bash
+   git clone git@github.com:PRAkTIKal24/CIPhR.git
+   cd CIPhR
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   uv venv
+   source .venv/bin/activate
+   uv pip install -e .
+   ```
+
+3. **Configure API Keys**:
+   Create a `.env` file:
+   ```env
+   FIRECRAWL_API_KEY=your_firecrawl_api_key
+   GEMINI_API_KEY=your_gemini_api_key
+   ```
+
+4. **Test installation**:
+   ```bash
+   uv run ciphr --mode local --max_results 1 --verbose
+   ```
+
+## �🚀 Mattermost ML4DM Bot Integration
+
+CIPhR includes intelligent Mattermost integration that automatically detects papers using **Machine Learning for Dark Matter (ML4DM)** research and posts notifications to your Mattermost channels.
 
 ### Features
 
@@ -74,23 +141,24 @@ CIPhR now includes intelligent Mattermost integration that automatically detects
 CIPhR/
 ├── .github/
 │   └── workflows/
-│       └── main.yml              # GitHub Actions workflow (hybrid approach)
+│       └── ciphr.yml             # GitHub Actions workflow
 ├── ciphr/
 │   ├── config/
 │   │   └── config.py             # Configuration for API keys, arXiv tags, and LLM questions
 │   ├── src/
 │   │   ├── arxiv_scraper.py      # Handles arXiv searching and PDF downloading
-│   │   ├── llm_analyzer.py       # Original LLM analysis (legacy)
-│   │   ├── data_processor.py     # 🆕 Data collection for hybrid workflow
-│   │   ├── result_processor.py   # 🆕 Result processing for hybrid workflow
-│   │   └── mattermost_notifier.py # 🤖 ML4DM detection and Mattermost posting
-│   ├── ciphr.py                  # Original single-phase workflow
-│   └── ciphr_hybrid.py           # 🆕 Hybrid workflow orchestrator
+│   │   ├── llm_analyzer.py       # LLM analysis for local mode
+│   │   ├── data_processor.py     # Data collection for CI workflows
+│   │   ├── result_processor.py   # Result processing and table generation
+│   │   ├── mattermost_notifier.py # 🤖 ML4DM detection and Mattermost posting
+│   │   └── wordpress_publisher.py # 📝 WordPress integration for automated publishing
+│   ├── ciphr.py                  # 🎯 Main unified command (supports local and CI modes)
+│   └── ciphr_legacy.py           # Legacy single-phase workflow (backup)
 ├── output/                       # Generated research insights and intermediate files
 ├── tests/                        # Unit tests for the project
 ├── pyproject.toml               # Python project configuration (uv-based)
 ├── README.md                    # This file
-├── HYBRID_WORKFLOW.md           # 🆕 Detailed hybrid workflow guide
+├── HYBRID_WORKFLOW.md           # Detailed workflow documentation
 └── .env                         # Environment variables for API keys (local development)
 ```
 
@@ -142,36 +210,36 @@ CIPhR/
 
 ## Usage
 
-### 🚀 Hybrid Workflow (Recommended for CI workflows)
+### 🚀 Local Development Mode (Recommended for development)
 
-For improved reliability and authentication in GitHub Actions, use the hybrid workflow:
-
-**Data Collection:**
-```bash
-uv run ciphr-hybrid --mode collect --tags hep-ex --max_results 10 --output_dir output --output_filename hepex.md --verbose
-```
-
-**Result Processing (after LLM analysis):**
-```bash
-uv run ciphr-hybrid --mode process --output_dir output --output_filename hepex.md --verbose
-```
-
-**Local Full Workflow (requires API keys):**
-```bash
-uv run ciphr-hybrid --mode full --tags hep-ex --max_results 10 --output_dir output --output_filename hepex.md --verbose
-```
-
-> ⚠️ **Note**: The `--mode full` option requires local GEMINI_API_KEY for LLM analysis. For production use, use the GitHub Actions workflow which handles LLM analysis via the `run-gemini-cli` action. See [ciphr.yml](https://github.com/PRAkTIKal24/CIPhR/blob/main/.github/workflows/ciphr.yml) for a production workflow example.
-
-> 📖 **For detailed hybrid workflow instructions, see [HYBRID_WORKFLOW.md](HYBRID_WORKFLOW.md)**
-
-### 🔧 Local Workflow
-
-The original single-command approach still works for local development:
+For local development with immediate LLM analysis:
 
 ```bash
-uv run ciphr --tags hep-ex --max_results 10 --output_dir output --output_filename hepex.md
+uv run ciphr --mode local --tags hep-ex --max_results 10 --output_dir output --output_filename hepex.md --verbose
 ```
+
+### 🔧 CI/CD Workflow Modes
+
+For production GitHub Actions workflows, use these modes:
+
+**Data Collection (Phase 1):**
+```bash
+uv run ciphr --mode collect --tags hep-ex --max_results 10 --output_dir output --output_filename hepex.md --verbose
+```
+
+**Result Processing (Phase 3 - after LLM analysis):**
+```bash
+uv run ciphr --mode process --output_dir output --output_filename hepex.md --verbose
+```
+
+**Full Workflow (Local with API keys):**
+```bash
+uv run ciphr --mode full --tags hep-ex --max_results 10 --output_dir output --output_filename hepex.md --verbose
+```
+
+> ⚠️ **Note**: The `--mode local` and `--mode full` require GEMINI_API_KEY for LLM analysis. For production CI/CD, use the GitHub Actions workflow which handles LLM analysis via dedicated actions. See [ciphr.yml](https://github.com/PRAkTIKal24/CIPhR/blob/main/.github/workflows/ciphr.yml).
+
+> 📖 **For detailed workflow instructions, see [HYBRID_WORKFLOW.md](HYBRID_WORKFLOW.md)**
 
 ### Command-line Arguments
 
@@ -195,13 +263,13 @@ The `config/config.py` file allows you to customize default settings:
 
 ## GitHub Actions Automation
 
-### ✅ Hybrid Workflow (Production Ready)
+### ✅ Production CI/CD Workflow
 
-The current `.github/workflows/ciphr.yml` uses the hybrid approach with three phases:
+The current `.github/workflows/ciphr.yml` uses a three-phase approach:
 
-1. **Data Collection**: Scrapes arXiv and processes PDFs using `uv run ciphr-hybrid --mode collect`
+1. **Data Collection**: Scrapes arXiv and processes PDFs using `uv run ciphr --mode collect`
 2. **LLM Analysis**: Individual paper analysis using `google-github-actions/run-gemini-cli@v0` (analyze-1 through analyze-5 steps)
-3. **Result Processing**: Combines individual results and generates final markdown tables using `uv run ciphr-hybrid --mode process`
+3. **Result Processing**: Combines individual results and generates final markdown tables using `uv run ciphr --mode process`
 
 **Benefits:**
 - ✅ Solves authentication issues in GitHub Actions environments
@@ -215,10 +283,6 @@ The current `.github/workflows/ciphr.yml` uses the hybrid approach with three ph
 **Schedule:** 
 - Runs every day at 00:00 UTC
 - Manual triggering available via workflow_dispatch
-
-### 🔧 Legacy Workflow
-
-The original single-phase workflow is still available but may experience authentication issues in GitHub Actions environments due to GCP environment auto-detection.
 
 ### Setting up API Keys and Webhooks in GitHub Secrets
 
@@ -237,8 +301,8 @@ For the GitHub Actions workflow to access your API keys and Mattermost webhook, 
 
 -   **New LLM Questions**: Simply update the `LLM_QUESTIONS` list in `ciphr/config/config.py`.
 -   **Different arXiv Categories**: Modify the `--tags` argument when running the script or the `ARXIV_TAGS` in `ciphr/config/config.py`.
--   **Output Format**: The `generate_markdown_table` function can be modified in either workflow approach.
--   **🆕 Custom Analysis**: The hybrid workflow's JSON intermediate format makes it easy to integrate with other analysis tools.
+-   **Output Format**: The `generate_markdown_table` function can be modified in `ciphr/src/result_processor.py`.
+-   **Custom Analysis**: The JSON intermediate format makes it easy to integrate with other analysis tools.
 
 ### Common arXiv Tags
 - `hep-ex` - High Energy Physics - Experiment
@@ -250,17 +314,11 @@ For the GitHub Actions workflow to access your API keys and Mattermost webhook, 
 
 ## Troubleshooting
 
-### Authentication Issues (GitHub Actions)
-✅ **Resolved**: The hybrid workflow uses `google-github-actions/run-gemini-cli@v0` which handles authentication robustly.
-
-### Empty LLM Results
-✅ **Resolved**: Individual paper processing (analyze-1 through analyze-5) prevents batch processing issues that caused empty results.
-
 ### Common Issues
 - **No papers found**: Check arXiv tags and date ranges
 - **Duplicate papers**: System automatically skips papers already processed (check logs for "Skipping duplicate paper")
 - **File permissions**: Ensure output directory is writable
-- **Command not found**: Use `uv run ciphr-hybrid` (not `python -m ciphr.ciphr_hybrid`)
+- **Missing dependencies**: Run `uv sync` to install all required packages
 
 For detailed troubleshooting, see [HYBRID_WORKFLOW.md](HYBRID_WORKFLOW.md#troubleshooting).
 
@@ -270,33 +328,10 @@ For detailed troubleshooting, see [HYBRID_WORKFLOW.md](HYBRID_WORKFLOW.md#troubl
 
 | Command | Purpose | Best For |
 |---------|---------|----------|
-| `uv run ciphr` | Original single-phase workflow | Local development, testing |
-| `uv run ciphr-hybrid --mode collect` | Data collection only | Preparing data for analysis |
-| `uv run ciphr-hybrid --mode process` | Process LLM results | After GitHub Actions LLM analysis |
-| `uv run ciphr-hybrid --mode full` | Complete local workflow | Local testing with API keys |
-
-### Workflow Comparison
-
-| Feature | Original | Hybrid ✅ |
-|---------|----------|--------|
-| GitHub Actions reliability | ⚠️ Auth issues | ✅ Production ready |
-| Empty results prevention | ⚠️ Batch processing issues | ✅ Individual processing |
-| Error handling | Basic | ✅ Advanced |
-| Debugging | Limited | ✅ Detailed logs |
-| Maintenance | Manual SDK updates | ✅ Google maintained |
-| Result parsing | Basic | ✅ Robust with delimiters |
-
-### Migration Status
-
-✅ **Migration Complete**: The repository has been fully migrated to the hybrid workflow.
-
-**Current Commands:**
-1. **Local testing**: `uv run ciphr-hybrid --mode collect --max_results 2 --verbose`
-2. **GitHub Actions**: Uses hybrid workflow automatically
-3. **Result processing**: `uv run ciphr-hybrid --mode process --verbose`
-4. **Full local run**: `uv run ciphr-hybrid --mode full --max_results 5 --verbose` (requires API keys)
-
-**For new users**: Start directly with the hybrid workflow - no migration needed.
+| `uv run ciphr --mode local` | Complete local workflow with LLM | Development and testing |
+| `uv run ciphr --mode collect` | Data collection only | CI/CD phase 1 |
+| `uv run ciphr --mode process` | Process LLM results | CI/CD phase 3 |
+| `uv run ciphr --mode full` | Complete workflow (legacy mode) | Local testing |
 
 ## Example Output
 
