@@ -142,7 +142,7 @@ CIPhR/
 
 ## Usage
 
-### 🚀 Hybrid Workflow (Recommended)
+### 🚀 Hybrid Workflow (Recommended for CI workflows)
 
 For improved reliability and authentication in GitHub Actions, use the hybrid workflow:
 
@@ -161,11 +161,11 @@ uv run ciphr-hybrid --mode process --output_dir output --output_filename hepex.m
 uv run ciphr-hybrid --mode full --tags hep-ex --max_results 10 --output_dir output --output_filename hepex.md --verbose
 ```
 
-> ⚠️ **Note**: The `--mode full` option requires local GEMINI_API_KEY for LLM analysis. For production use, use the GitHub Actions workflow which handles LLM analysis via the `run-gemini-cli` action.
+> ⚠️ **Note**: The `--mode full` option requires local GEMINI_API_KEY for LLM analysis. For production use, use the GitHub Actions workflow which handles LLM analysis via the `run-gemini-cli` action. See [ciphr.yml](https://github.com/PRAkTIKal24/CIPhR/blob/main/.github/workflows/ciphr.yml) for a production workflow example.
 
 > 📖 **For detailed hybrid workflow instructions, see [HYBRID_WORKFLOW.md](HYBRID_WORKFLOW.md)**
 
-### 🔧 Original Workflow
+### 🔧 Local Workflow
 
 The original single-command approach still works for local development:
 
@@ -197,7 +197,7 @@ The `config/config.py` file allows you to customize default settings:
 
 ### ✅ Hybrid Workflow (Production Ready)
 
-The current `.github/workflows/main.yml` uses the hybrid approach with three phases:
+The current `.github/workflows/ciphr.yml` uses the hybrid approach with three phases:
 
 1. **Data Collection**: Scrapes arXiv and processes PDFs using `uv run ciphr-hybrid --mode collect`
 2. **LLM Analysis**: Individual paper analysis using `google-github-actions/run-gemini-cli@v0` (analyze-1 through analyze-5 steps)
