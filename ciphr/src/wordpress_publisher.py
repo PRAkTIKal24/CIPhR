@@ -1,9 +1,14 @@
+import base64
+import glob
 import logging
 import os
-import requests
-from typing import Optional
-import base64
+import re
 from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+import pypandoc
+import requests
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -51,7 +56,6 @@ class WordPressPublisher:
 
         try:
             # Try using pandoc for robust conversion
-            import pypandoc
 
             # Convert markdown to HTML using pandoc
             html_body = pypandoc.convert_text(
@@ -94,7 +98,6 @@ class WordPressPublisher:
         Returns:
             str: HTML formatted content
         """
-        import re
 
         lines = [
             line.strip()
@@ -214,7 +217,6 @@ class WordPressPublisher:
         Returns:
             str: Processed HTML content
         """
-        import re
 
         # Convert markdown links to HTML
         # Handle [text](url) format
@@ -256,7 +258,6 @@ class WordPressPublisher:
     def _escape_html_partial(self, text: str) -> str:
         """Escape HTML characters but preserve existing HTML tags."""
         # Simple approach: only escape < and > that aren't part of tags
-        import re
 
         # Protect existing HTML tags
         protected = []
@@ -485,9 +486,6 @@ def find_latest_output_file(base_file_path: str) -> str:
     Returns:
         str: Path to the actual output file to use
     """
-    import glob
-    import os
-    from pathlib import Path
 
     # If the base file exists, use it
     if os.path.exists(base_file_path):
