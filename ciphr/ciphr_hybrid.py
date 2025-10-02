@@ -4,7 +4,14 @@ import logging
 import os
 import sys
 
-from .config.config import ARXIV_TAGS, LLM_QUESTIONS, MAX_ARXIV_RESULTS
+from .config.config import (
+    ARXIV_TAGS,
+    LLM_QUESTIONS,
+    MAX_ARXIV_RESULTS,
+    MAX_CONTENT_LENGTH_FOR_LLM,
+    LOG_PREVIEW_LENGTH,
+    ERROR_MESSAGE_LENGTH,
+)
 from .src.arxiv_scraper import search_arxiv
 from .src.data_processor import DataProcessor
 from .src.llm_analyzer import LLMAnalyzer
@@ -291,7 +298,7 @@ def main():
             content = f.read().strip()
 
         logging.info(f"LLM results file size: {len(content)} characters")
-        logging.info(f"Raw LLM results content preview: {content[:500]}...")
+        logging.info(f"Raw LLM results content preview: {content[:LOG_PREVIEW_LENGTH]}...")
 
         # Handle completely empty results
         if not content:
@@ -455,7 +462,7 @@ def main():
             logging.info(f"Analyzing paper {i}/{len(papers_data)}: {paper_data['title'][:50]}...")
             
             # Create content for analysis
-            content = f"Title: {paper_data['title']}\n\nAbstract: {paper_data['abstract']}\n\nContent: {paper_data.get('combined_content', '')[:2000]}"
+            content = f"Title: {paper_data['title']}\n\nAbstract: {paper_data['abstract']}\n\nContent: {paper_data.get('combined_content', '')[:MAX_CONTENT_LENGTH_FOR_LLM]}"
             
             try:
                 # Analyze with local LLM
@@ -472,7 +479,7 @@ def main():
             except Exception as e:
                 logging.error(f"Error analyzing paper {i}: {e}")
                 # Create fallback result
-                fallback_result = {q: f"Error during analysis: {str(e)[:100]}" for q in LLM_QUESTIONS}
+                fallback_result = {q: f"Error during analysis: {str(e)[:ERROR_MESSAGE_LENGTH]}" for q in LLM_QUESTIONS}
                 llm_results.append(json.dumps(fallback_result))
 
         # Combine results using the same logic as other modes
