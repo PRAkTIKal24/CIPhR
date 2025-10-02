@@ -28,33 +28,73 @@ CIPhR is an automated tool designed to scrape particle physics research papers f
 - **💬 Mattermost ML4DM Bot**: Smart notifications for machine learning + dark matter papers
 - **⚡ GitHub Actions Ready**: Automated daily execution with reliable authentication
 
+## 🔧 Installation and Setup
+
+1.  **Install `uv` (if not already installed)**:
+
+    ```bash
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    export PATH="$HOME/.local/bin:$PATH"
+    ```
+
+2. **Clone the repository**:
+   ```bash
+   git clone git@github.com:PRAkTIKal24/CIPhR.git
+   cd CIPhR
+   ```
+
+3.  **Create a virtual environment and install dependencies**:
+
+    ```bash
+    uv venv
+    source .venv/bin/activate
+    uv pip install -e .
+    uv sync
+    ```
+
+    If you want to develop new features, install the `dev-dependencies` as well:
+
+    ```bash
+    uv pip install --group dev
+    ```
+
+4. **Configure API Keys**:
+   Create a `.env` file at the CIPhR root (same directory level as `pyproject.toml`) and enter the following in it with your own API_KEYs:
+   ```env
+   FIRECRAWL_API_KEY=your_firecrawl_api_key
+   GEMINI_API_KEY=your_gemini_api_key
+   ```
+
+5. **Test installation**:
+   ```bash
+   uv run ciphr --help
+   ```
+
 ## Quick Start
 
 ### 🏠 Local Usage (Recommended for Development)
 
 ```bash
-# Install CIPhR
-uv pip install -e .
-
-# Set up API keys in .env file
-FIRECRAWL_API_KEY=your_firecrawl_api_key
-GEMINI_API_KEY=your_gemini_api_key
-
 # Run complete local workflow (default mode)
-uv run ciphr --tags hep-ex --max_results 5 --output_filename physics_papers.md
-
-# Same as above (explicit local mode)
-uv run ciphr --mode local --tags hep-ex --max_results 5
+uv run ciphr --tags hep-ex --max_results 5 --output_filename my_output.md --verbose
 ```
 
-### ⚙️ Available Modes
+```bash
+# Same as above (explicit local mode, output directory declarations)
+uv run ciphr --mode local --tags hep-ex --max_results 5 --output_dir output --output_filename my_output.md --verbose
+```
 
-| Mode | Description | Use Case |
-|------|-------------|----------|
-| **`local`** | Complete workflow with API keys | Local development, testing |
-| `collect` | Data collection only | Preparing data for external LLM analysis |
-| `process` | Process existing LLM results | After GitHub Actions LLM analysis |
-| `full` | CI workflow (expects `run-gemini-cli`) | GitHub Actions automation |
+
+### Configuration
+
+The `config/config.py` file allows you to customize default settings:
+
+-   `FIRECRAWL_API_KEY`: Your Firecrawl API key (loaded from `.env`).
+-   `GEMINI_API_KEY`: Your Gemini API key (loaded from `.env`).
+-   `LLM_QUESTIONS`: A list of strings, where each string is a question you want the LLM to answer for each paper. Modify this list to tailor the extracted information.
+-   `ARXIV_TAGS`: Default arXiv tags.
+-   `MAX_ARXIV_RESULTS`: Default maximum number of results.
+
 
 ### � Command Options
 
@@ -67,35 +107,118 @@ Options:
   --max_results N                      Maximum papers to process (default: 5)
   --output_filename FILE               Output markdown file
   --output_dir DIR                     Output directory (default: output)
-  --verbose                           Enable detailed logging
+  --verbose                            Enable detailed logging
+```
+You can also use the following to see these options in the command line:
+
+```bash
+uv run ciphr --help
 ```
 
-## 🔧 Installation
+### ⚙️ Available Modes
 
-1. **Clone the repository**:
-   ```bash
-   git clone git@github.com:PRAkTIKal24/CIPhR.git
-   cd CIPhR
-   ```
+> ⚠️ **Note**: Only the `local` mode is recommended for running locally. Other modes are mainly intended for CI/CD deployment!
 
-2. **Install dependencies**:
-   ```bash
-   uv venv
-   source .venv/bin/activate
-   uv pip install -e .
-   ```
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| **`local`** | Complete workflow with API keys | Local development, testing |
+| `collect` | Data collection only | Preparing data for external LLM analysis |
+| `process` | Process existing LLM results | After GitHub Actions LLM analysis |
+| `full` | CI workflow (expects `run-gemini-cli`) | GitHub Actions automation |
 
-3. **Configure API Keys**:
-   Create a `.env` file:
-   ```env
-   FIRECRAWL_API_KEY=your_firecrawl_api_key
-   GEMINI_API_KEY=your_gemini_api_key
-   ```
+## Project Structure
 
-4. **Test installation**:
-   ```bash
-   uv run ciphr --mode local --max_results 1 --verbose
-   ```
+```
+CIPhR/
+├── .github/
+│   └── workflows/
+│       └── ciphr.yml             # GitHub Actions workflow
+├── ciphr/
+│   ├── config/
+│   │   └── config.py             # Configuration for API keys, arXiv tags, and LLM questions
+│   ├── src/
+│   │   ├── arxiv_scraper.py      # Handles arXiv searching and PDF downloading
+│   │   ├── llm_analyzer.py       # LLM analysis for local mode
+│   │   ├── data_processor.py     # Data collection for CI workflows
+│   │   ├── result_processor.py   # Result processing and table generation
+│   │   ├── mattermost_notifier.py # 🤖 ML4DM detection and Mattermost posting
+│   │   └── wordpress_publisher.py # 📝 WordPress integration for automated publishing
+│   ├── ciphr.py                  # 🎯 Main unified command (supports local and CI modes)
+│   └── ciphr_legacy.py           # Legacy single-phase workflow (backup)
+├── output/                       # Generated research insights and intermediate files
+├── tests/                        # Unit tests for the project
+├── pyproject.toml               # Python project configuration (uv-based)
+├── README.md                    # This file
+├── HYBRID_WORKFLOW.md           # Detailed workflow documentation
+└── .env                         # Environment variables for API keys (local development)
+```
+
+## Usage
+
+### 🚀 Local Development Mode (Recommended for development)
+
+For local development with immediate LLM analysis:
+
+```bash
+uv run ciphr --mode local --tags hep-ex --max_results 10 --output_dir output --output_filename hepex.md --verbose
+```
+
+### 🔧 CI/CD Workflow Modes
+
+For production GitHub Actions workflows, use these modes:
+
+**Data Collection (Phase 1):**
+```bash
+uv run ciphr --mode collect --tags hep-ex --max_results 10 --output_dir output --output_filename hepex.md --verbose
+```
+
+**LLM Analysis (Phase 2):**
+See [ciphr.yml](https://github.com/PRAkTIKal24/CIPhR/blob/main/.github/workflows/ciphr.yml) for instructions on how to use `run-gemini-cli` independently for this phase.
+
+**Result Processing (Phase 3 - after LLM analysis):**
+```bash
+uv run ciphr --mode process --output_dir output --output_filename hepex.md --verbose
+```
+
+> ⚠️ **Note**: The `--mode local` and `--mode full` require GEMINI_API_KEY for LLM analysis. For production CI/CD, use the GitHub Actions workflow which handles LLM analysis via dedicated actions. See [ciphr.yml](https://github.com/PRAkTIKal24/CIPhR/blob/main/.github/workflows/ciphr.yml).
+
+> 📖 **For detailed workflow instructions, see [HYBRID_WORKFLOW.md](HYBRID_WORKFLOW.md)**
+
+## GitHub Actions Automation
+
+### ✅ Production CI/CD Workflow
+
+The current `.github/workflows/ciphr.yml` uses a three-phase approach:
+
+1. **Data Collection**: Scrapes arXiv and processes PDFs using `uv run ciphr --mode collect`
+2. **LLM Analysis**: Individual paper analysis using `google-github-actions/run-gemini-cli@v0` (analyze-1 through analyze-5 steps)
+3. **Result Processing**: Combines individual results and generates final markdown tables using `uv run ciphr --mode process`
+
+**Benefits:**
+- ✅ Solves authentication issues in GitHub Actions environments
+- ✅ Individual paper processing prevents empty LLM results
+- ✅ More reliable error handling and recovery
+- ✅ Better logging and debugging capabilities
+- ✅ Maintained by Google for long-term stability
+- ✅ Results separated by `---PAPER---` delimiter for reliable parsing
+- 🤖 Intelligent ML4DM detection and Mattermost notifications
+
+**Schedule:** 
+- Runs every day at 00:00 UTC
+- Manual triggering available via workflow_dispatch
+
+### Setting up API Keys and Webhooks in GitHub Secrets
+
+For the GitHub Actions workflow to access your API keys and Mattermost webhook, you must add them as repository secrets:
+
+1.  Go to your GitHub repository.
+2.  Navigate to `Settings` > `Secrets and variables` > `Actions`.
+3.  Click `New repository secret`.
+4.  Add `GEMINI_API_KEY` with your [Google AI Studio API key](https://aistudio.google.com/app/apikey) as its value.
+5.  Add `FIRECRAWL_API_KEY` with your Firecrawl API key as its value (optional, for enhanced scraping).
+6.  🤖 Add `MM_WEBHOOK_URL` with your Mattermost incoming webhook URL (optional, for ML4DM notifications).
+
+> 🔑 **Note**: The hybrid workflow only requires `GEMINI_API_KEY` for core functionality. The `google-github-actions/run-gemini-cli` action handles authentication robustly without the issues experienced by direct SDK usage.
 
 ## �🚀 Mattermost ML4DM Bot Integration
 
@@ -134,168 +257,6 @@ CIPhR includes intelligent Mattermost integration that automatically detects pap
 - **Robust Detection**: Uses advanced pattern matching to identify ML usage in LLM responses
 - **Error Handling**: Gracefully handles webhook failures without affecting the main workflow
 - **Efficient Processing**: Minimal overhead - only processes papers that pass the ML4DM filter
-
-## Project Structure
-
-```
-CIPhR/
-├── .github/
-│   └── workflows/
-│       └── ciphr.yml             # GitHub Actions workflow
-├── ciphr/
-│   ├── config/
-│   │   └── config.py             # Configuration for API keys, arXiv tags, and LLM questions
-│   ├── src/
-│   │   ├── arxiv_scraper.py      # Handles arXiv searching and PDF downloading
-│   │   ├── llm_analyzer.py       # LLM analysis for local mode
-│   │   ├── data_processor.py     # Data collection for CI workflows
-│   │   ├── result_processor.py   # Result processing and table generation
-│   │   ├── mattermost_notifier.py # 🤖 ML4DM detection and Mattermost posting
-│   │   └── wordpress_publisher.py # 📝 WordPress integration for automated publishing
-│   ├── ciphr.py                  # 🎯 Main unified command (supports local and CI modes)
-│   └── ciphr_legacy.py           # Legacy single-phase workflow (backup)
-├── output/                       # Generated research insights and intermediate files
-├── tests/                        # Unit tests for the project
-├── pyproject.toml               # Python project configuration (uv-based)
-├── README.md                    # This file
-├── HYBRID_WORKFLOW.md           # Detailed workflow documentation
-└── .env                         # Environment variables for API keys (local development)
-```
-
-## Setup and Installation
-
-1.  **Clone the repository
-
-    ```bash
-    git clone git@github.com:PRAkTIKal24/CIPhR.git
-    ```
-
-2.  **Navigate to the CIPhR directory**:
-
-    ```bash
-    cd CIPhR
-    ```
-
-3.  **Install `uv` (if not already installed)**:
-
-    ```bash
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-    export PATH="$HOME/.local/bin:$PATH"
-    ```
-
-4.  **Create a virtual environment and install dependencies**:
-
-    ```bash
-    uv venv
-    source .venv/bin/activate
-    uv pip install -e .
-    uv sync
-    ```
-
-    If you want to develop new features add install the `dev-dependencies` as well:
-
-    ```bash
-    uv pip install --group dev
-
-    ```
-
-5.  **Configure API Keys**: Open the `.env` file that should contain `API-KEY` fields:
-    
-    ```dotenv
-    FIRECRAWL_API_KEY=your_firecrawl_api_key
-    GEMINI_API_KEY=your_gemini_api_key
-    ```
-
-    *Replace `your_firecrawl_api_key` and `your_gemini_api_key` with your actual keys.*
-
-## Usage
-
-### 🚀 Local Development Mode (Recommended for development)
-
-For local development with immediate LLM analysis:
-
-```bash
-uv run ciphr --mode local --tags hep-ex --max_results 10 --output_dir output --output_filename hepex.md --verbose
-```
-
-### 🔧 CI/CD Workflow Modes
-
-For production GitHub Actions workflows, use these modes:
-
-**Data Collection (Phase 1):**
-```bash
-uv run ciphr --mode collect --tags hep-ex --max_results 10 --output_dir output --output_filename hepex.md --verbose
-```
-
-**Result Processing (Phase 3 - after LLM analysis):**
-```bash
-uv run ciphr --mode process --output_dir output --output_filename hepex.md --verbose
-```
-
-**Full Workflow (Local with API keys):**
-```bash
-uv run ciphr --mode full --tags hep-ex --max_results 10 --output_dir output --output_filename hepex.md --verbose
-```
-
-> ⚠️ **Note**: The `--mode local` and `--mode full` require GEMINI_API_KEY for LLM analysis. For production CI/CD, use the GitHub Actions workflow which handles LLM analysis via dedicated actions. See [ciphr.yml](https://github.com/PRAkTIKal24/CIPhR/blob/main/.github/workflows/ciphr.yml).
-
-> 📖 **For detailed workflow instructions, see [HYBRID_WORKFLOW.md](HYBRID_WORKFLOW.md)**
-
-### Command-line Arguments
-
--   `--tags`: Comma-separated arXiv categories/tags to search for (e.g., `hep-ph,nucl-ex`). Default is `hep-ph`.
--   `--max_results`: Maximum number of arXiv papers to process. Default is `5`.
--   `--output_dir`: Directory to save downloaded PDFs (temporarily) and the final markdown table. Default is `output`.
--   `--output_filename`: Filename for the markdown output table. Default is `research_insights.md`.
--   `--mode`: Operating mode - `collect` (data only), `process` (results only), or `full` (complete workflow).
--   `--llm_results_file`: File containing LLM analysis results (for process mode). Default is `llm_results.txt`.
--   `--verbose`: Enable detailed logging for debugging.
-
-## Configuration
-
-The `config/config.py` file allows you to customize default settings:
-
--   `FIRECRAWL_API_KEY`: Your Firecrawl API key (loaded from `.env`).
--   `GEMINI_API_KEY`: Your Gemini API key (loaded from `.env`).
--   `LLM_QUESTIONS`: A list of strings, where each string is a question you want the LLM to answer for each paper. Modify this list to tailor the extracted information.
--   `ARXIV_TAGS`: Default arXiv tags.
--   `MAX_ARXIV_RESULTS`: Default maximum number of results.
-
-## GitHub Actions Automation
-
-### ✅ Production CI/CD Workflow
-
-The current `.github/workflows/ciphr.yml` uses a three-phase approach:
-
-1. **Data Collection**: Scrapes arXiv and processes PDFs using `uv run ciphr --mode collect`
-2. **LLM Analysis**: Individual paper analysis using `google-github-actions/run-gemini-cli@v0` (analyze-1 through analyze-5 steps)
-3. **Result Processing**: Combines individual results and generates final markdown tables using `uv run ciphr --mode process`
-
-**Benefits:**
-- ✅ Solves authentication issues in GitHub Actions environments
-- ✅ Individual paper processing prevents empty LLM results
-- ✅ More reliable error handling and recovery
-- ✅ Better logging and debugging capabilities
-- ✅ Maintained by Google for long-term stability
-- ✅ Results separated by `---PAPER---` delimiter for reliable parsing
-- 🤖 Intelligent ML4DM detection and Mattermost notifications
-
-**Schedule:** 
-- Runs every day at 00:00 UTC
-- Manual triggering available via workflow_dispatch
-
-### Setting up API Keys and Webhooks in GitHub Secrets
-
-For the GitHub Actions workflow to access your API keys and Mattermost webhook, you must add them as repository secrets:
-
-1.  Go to your GitHub repository.
-2.  Navigate to `Settings` > `Secrets and variables` > `Actions`.
-3.  Click `New repository secret`.
-4.  Add `GEMINI_API_KEY` with your [Google AI Studio API key](https://aistudio.google.com/app/apikey) as its value.
-5.  Add `FIRECRAWL_API_KEY` with your Firecrawl API key as its value (optional, for enhanced scraping).
-6.  🤖 Add `MM_WEBHOOK_URL` with your Mattermost incoming webhook URL (optional, for ML4DM notifications).
-
-> 🔑 **Note**: The hybrid workflow only requires `GEMINI_API_KEY` for core functionality. The `google-github-actions/run-gemini-cli` action handles authentication robustly without the issues experienced by direct SDK usage.
 
 ## Extending and Customizing
 
