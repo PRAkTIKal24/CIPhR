@@ -226,6 +226,17 @@ BIBLIOGRAPHY
         )
         assert no_conclusions is None
 
+        # Test with a section that might have a malformed pattern
+        # This indirectly tests the null check for section_name
+        content_edge_case = (
+            "Some content\n\nConclusions:\nTest conclusions with good content."
+        )
+
+        edge_result = self.processor.extract_conclusions_section(content_edge_case)
+        # Should handle potential None section_name gracefully via the fallback
+        assert edge_result is not None
+        assert "Test conclusions" in edge_result
+
     def test_process_content_for_llm(self):
         """Test complete content processing for LLM analysis."""
         title = "Advanced Physics Analysis"
