@@ -89,11 +89,29 @@ uv run ciphr --mode local --tags hep-ex --max_results 5 --output_dir output --ou
 
 The `config/config.py` file allows you to customize default settings:
 
+#### 🔑 API Configuration
 -   `FIRECRAWL_API_KEY`: Your Firecrawl API key (loaded from `.env`).
 -   `GEMINI_API_KEY`: Your Gemini API key (loaded from `.env`).
--   `LLM_QUESTIONS`: A list of strings, where each string is a question you want the LLM to answer for each paper. Modify this list to tailor the extracted information.
--   `ARXIV_TAGS`: Default arXiv tags.
--   `MAX_ARXIV_RESULTS`: Default maximum number of results.
+
+#### 🤖 LLM Questions Configuration
+-   `LLM_QUESTIONS`: A list of strings, where each string is a question you want the LLM to answer for each paper. These questions appear in the main research output table.
+-   `ML4DM_DETECTION_QUESTION`: Additional question used specifically for ML4DM detection and Mattermost notifications (not included in the main output table).
+
+#### 📊 Question Functions
+-   `get_llm_questions()`: Returns questions for the main research table (used in local and CI modes).
+-   `get_ci_analysis_questions()`: Returns all questions including ML4DM detection (used only in CI workflows).
+
+#### 🔍 Search Configuration
+-   `ARXIV_TAGS`: Default arXiv categories (e.g., "hep-ph", "hep-ex").
+-   `MAX_ARXIV_RESULTS`: Default maximum number of results to process.
+-   `MAX_EXPANSION_RESULTS`: Maximum papers to search when expanding for duplicates (default: 25).
+
+#### 📝 Content Processing
+-   `MAX_CONTENT_LENGTH_FOR_LLM`: Maximum characters from paper content for LLM analysis (50K allows ~100% coverage).
+-   `MAX_CONCLUSIONS_LENGTH`: Maximum characters to extract from conclusions section (3K).
+-   `STRIP_REFERENCES`: Whether to remove references/bibliography sections (default: True).
+-   `LOG_PREVIEW_LENGTH`: Length of content preview in logs (500 chars).
+-   `ERROR_MESSAGE_LENGTH`: Length of truncated error messages (100 chars).
 
 
 ### � Command Options
@@ -132,25 +150,26 @@ uv run ciphr --help
 CIPhR/
 ├── .github/
 │   └── workflows/
-│       └── ciphr.yml             # GitHub Actions workflow
+│       └── ciphr.yml             # GitHub Actions workflow with smart expansion & ML4DM detection
 ├── ciphr/
 │   ├── config/
-│   │   └── config.py             # Configuration for API keys, arXiv tags, and LLM questions
+│   │   └── config.py             # 🔧 Enhanced configuration with separated question sets and content processing
 │   ├── src/
-│   │   ├── arxiv_scraper.py      # Handles arXiv searching and PDF downloading
-│   │   ├── llm_analyzer.py       # LLM analysis for local mode
-│   │   ├── data_processor.py     # Data collection for CI workflows
-│   │   ├── result_processor.py   # Result processing and table generation
+│   │   ├── arxiv_scraper.py      # 🔍 arXiv searching and PDF downloading with smart duplicate detection
+│   │   ├── llm_analyzer.py       # 🤖 LLM analysis for local mode
+│   │   ├── data_processor.py     # 📊 Data collection with smart expansion for CI workflows
+│   │   ├── result_processor.py   # 📝 Result processing and table generation with question management
 │   │   ├── mattermost_notifier.py # 🤖 ML4DM detection and Mattermost posting
-│   │   └── wordpress_publisher.py # 📝 WordPress integration for automated publishing
-│   ├── ciphr.py                  # 🎯 Main unified command (supports local and CI modes)
-│   └── ciphr_legacy.py           # Legacy single-phase workflow (backup)
-├── output/                       # Generated research insights and intermediate files
-├── tests/                        # Unit tests for the project
-├── pyproject.toml               # Python project configuration (uv-based)
-├── README.md                    # This file
-├── HYBRID_WORKFLOW.md           # Detailed workflow documentation
-└── .env                         # Environment variables for API keys (local development)
+│   │   ├── wordpress_publisher.py # 📝 WordPress integration for automated publishing
+│   │   └── utils.py              # 🛠️ Utility functions for modular architecture
+│   ├── ciphr_hybrid.py           # 🎯 Main unified command (supports local and CI modes)
+│   └── __main__.py               # 🚀 Entry point for command execution
+├── output/                       # 📂 Generated research insights and intermediate files
+├── tests/                        # 🧪 Comprehensive unit tests for all modules
+├── pyproject.toml               # 📦 Python project configuration (uv-based)
+├── README.md                    # 📖 This file
+├── HYBRID_WORKFLOW.md           # 📋 Detailed workflow documentation
+└── .env                         # 🔐 Environment variables for API keys (local development)
 ```
 
 ## Usage
@@ -160,8 +179,38 @@ CIPhR/
 For local development with immediate LLM analysis:
 
 ```bash
-uv run ciphr --mode local --tags hep-ex --max_results 10 --output_dir output --output_filename hepex.md --verbose
+uv run ciphr --mode local --tags hep-ex --max_results 5 --output_dir output --output_filename hepex.md --verbose
 ```
+
+#### 📊 **Recommended Approach: 5 Papers Per Run**
+
+The `--max_results 5` parameter is **strongly recommended** for both local and CI workflows to avoid hitting Gemini API rate limits. 
+
+**✅ For processing more than 5 papers, use multiple runs with shell scripts:**
+
+```bash
+#!/bin/bash
+# Example: Process 15 papers total (3 runs of 5 papers each)
+for i in {1..3}; do
+  echo "Run $i: Processing papers..."
+  uv run ciphr --mode local --tags hep-ex --max_results 5 --output_filename hepex.md --verbose
+  sleep 30  # Optional: Brief pause between runs
+done
+```
+
+**🧠 Smart Expansion Benefits:**
+- **Automatic Discovery**: Each run uses smart expansion to find the newest available papers
+- **Duplicate Avoidance**: Built-in duplicate detection ensures no paper is processed twice
+- **Rate Limit Compliance**: 5 papers per run stays well within API limits
+- **Fresh Content**: Later runs automatically discover papers missed by earlier runs
+
+**⚙️ Advanced Configuration:**
+If you need to adjust the smart expansion search capacity, modify `MAX_EXPANSION_RESULTS` in `ciphr/config/config.py` (default: 25 papers). This controls how many papers the system searches through to find your requested 5 unique papers.
+
+**⚠️ Why Not Higher `--max_results`?**
+- Values above 5 frequently trigger Gemini rate limits
+- Large batches can cause timeouts and incomplete analysis
+- Multiple smaller runs are more reliable and provide better error recovery
 
 ### 🔧 CI/CD Workflow Modes
 
@@ -169,7 +218,7 @@ For production GitHub Actions workflows, use these modes:
 
 **Data Collection (Phase 1):**
 ```bash
-uv run ciphr --mode collect --tags hep-ex --max_results 10 --output_dir output --output_filename hepex.md --verbose
+uv run ciphr --mode collect --tags hep-ex --max_results 5 --output_dir output --output_filename hepex.md --verbose
 ```
 
 **LLM Analysis (Phase 2):**
@@ -188,23 +237,34 @@ uv run ciphr --mode process --output_dir output --output_filename hepex.md --ver
 
 ### ✅ Production CI/CD Workflow
 
-The current `.github/workflows/ciphr.yml` uses a three-phase approach:
+The current `.github/workflows/ciphr.yml` uses a modern three-phase approach with smart expansion:
 
-1. **Data Collection**: Scrapes arXiv and processes PDFs using `uv run ciphr --mode collect`
+1. **Data Collection**: Scrapes arXiv with smart expansion logic using `uv run ciphr --mode collect`
+   - 🧠 **Smart Expansion**: Automatically searches 3x more papers when duplicates are found
+   - 🎯 **User Limit Respect**: Always returns exactly the number of papers requested (max_results)
+   - 🔍 **Enhanced Coverage**: Searches up to 25 papers to find fresh, unique content
+   
 2. **LLM Analysis**: Individual paper analysis using `google-github-actions/run-gemini-cli@v0` (analyze-1 through analyze-5 steps)
-3. **Result Processing**: Combines individual results and generates final markdown tables using `uv run ciphr --mode process`
+   - 🔧 **Individual Processing**: Each paper analyzed separately for maximum reliability
+   - 🎛️ **Dynamic Scaling**: Only runs analysis steps for papers actually found (1-5 papers)
+   - 📊 **Separated Questions**: Uses CI-specific questions including ML4DM detection
+   
+3. **Result Processing**: Combines individual results and generates final outputs using `uv run ciphr --mode process`
+   - 📝 **Clean Tables**: Only processes successfully analyzed papers
+   - 🤖 **ML4DM Detection**: Automatically posts to Mattermost when ML papers are found
+   - 📊 **Question Separation**: Main table uses research questions, notifications use ML4DM detection
 
 **Benefits:**
-- ✅ Solves authentication issues in GitHub Actions environments
-- ✅ Individual paper processing prevents empty LLM results
-- ✅ More reliable error handling and recovery
-- ✅ Better logging and debugging capabilities
-- ✅ Maintained by Google for long-term stability
-- ✅ Results separated by `---PAPER---` delimiter for reliable parsing
-- 🤖 Intelligent ML4DM detection and Mattermost notifications
+- ✅ **Smart Paper Discovery**: Finds fresh papers even when initial search returns stale results
+- ✅ **No Empty Results**: Individual processing prevents failed LLM analysis
+- ✅ **Reliable Authentication**: GitHub-maintained actions for stable API access
+- ✅ **Dynamic Scaling**: Handles 1-5 papers automatically without hardcoding
+- ✅ **Enhanced Logging**: Detailed logs for debugging and monitoring
+- ✅ **Question Management**: Separated concerns for research vs notification questions
+- 🤖 **Intelligent ML4DM Detection**: Smart pattern matching for machine learning papers
 
 **Schedule:** 
-- Runs every day at 00:00 UTC
+- Runs every day at 07:00 UTC
 - Manual triggering available via workflow_dispatch
 
 ### Setting up API Keys and Webhooks in GitHub Secrets
