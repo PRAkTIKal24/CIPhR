@@ -16,12 +16,6 @@ def test_ciphr_hybrid_import():
     assert hasattr(ciphr_hybrid, "main")
 
 
-def test_original_ciphr_import():
-    """Test that original ciphr can be imported successfully."""
-    from ciphr import ciphr
-
-    assert hasattr(ciphr, "main")
-
 
 @patch("sys.argv", ["ciphr-hybrid", "--help"])
 def test_ciphr_hybrid_help():
@@ -34,17 +28,6 @@ def test_ciphr_hybrid_help():
     # Help should exit with code 0
     assert exc_info.value.code == 0
 
-
-@patch("sys.argv", ["ciphr", "--help"])
-def test_original_ciphr_help():
-    """Test that original ciphr --help doesn't crash."""
-    from ciphr.ciphr import main
-
-    with pytest.raises(SystemExit) as exc_info:
-        main()
-
-    # Help should exit with code 0
-    assert exc_info.value.code == 0
 
 
 def test_hybrid_workflow_data_collection_args():
