@@ -49,7 +49,9 @@ def test_complete_append_workflow():
         print(f"Should append: {should_append1}")
 
         # Create the file
-        markdown_content = processor.generate_markdown_table(mock_results, LLM_QUESTIONS, include_header=True)
+        markdown_content = processor.generate_markdown_table(
+            mock_results, LLM_QUESTIONS, include_header=True
+        )
         with open(output_path1, "w", encoding="utf-8") as f:
             f.write(markdown_content)
 
@@ -107,7 +109,9 @@ Some Paper | [Link](http://arxiv.org/abs/test) | Answer 1 | Answer 2
             f.write(different_content)
 
         # Test filename generation for this file
-        filename3 = processor.get_output_filename("different_questions.md", LLM_QUESTIONS)
+        filename3 = processor.get_output_filename(
+            "different_questions.md", LLM_QUESTIONS
+        )
         print(f"Filename for file with different questions: {filename3}")
 
         # Should create new file with date suffix since questions don't match

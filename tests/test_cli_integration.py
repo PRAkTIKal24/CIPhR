@@ -16,7 +16,6 @@ def test_ciphr_hybrid_import():
     assert hasattr(ciphr_hybrid, "main")
 
 
-
 @patch("sys.argv", ["ciphr-hybrid", "--help"])
 def test_ciphr_hybrid_help():
     """Test that ciphr-hybrid --help doesn't crash."""
@@ -27,7 +26,6 @@ def test_ciphr_hybrid_help():
 
     # Help should exit with code 0
     assert exc_info.value.code == 0
-
 
 
 def test_hybrid_workflow_data_collection_args():

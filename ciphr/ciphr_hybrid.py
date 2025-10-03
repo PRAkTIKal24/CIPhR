@@ -8,12 +8,10 @@ from .config.config import (
     ARXIV_TAGS,
     get_llm_questions,
     MAX_ARXIV_RESULTS,
-    MAX_EXPANSION_RESULTS,
     MAX_CONTENT_LENGTH_FOR_LLM,
     LOG_PREVIEW_LENGTH,
     ERROR_MESSAGE_LENGTH,
 )
-from .src.arxiv_scraper import search_arxiv
 from .src.data_processor import DataProcessor
 from .src.llm_analyzer import LLMAnalyzer
 from .src.result_processor import ResultProcessor
@@ -97,7 +95,7 @@ def main():
 
     # Get LLM questions for the research output table (same for local and CI)
     LLM_QUESTIONS = get_llm_questions()
-    
+
     if args.verbose:
         logging.info(f"Using {len(LLM_QUESTIONS)} LLM questions for research table")
 
@@ -109,12 +107,20 @@ def main():
         result_processor = ResultProcessor(args.output_dir)
 
         # Set up output environment and get existing data
-        final_filename, final_output_path, should_append, existing_links, existing_titles = setup_output_environment(
-            args, result_processor, LLM_QUESTIONS
-        )
+        (
+            final_filename,
+            final_output_path,
+            should_append,
+            existing_links,
+            existing_titles,
+        ) = setup_output_environment(args, result_processor, LLM_QUESTIONS)
 
         # Collect and filter papers with smart expansion
-        papers = collect_and_filter_papers(args, existing_links if should_append else set(), existing_titles if should_append else set())
+        papers = collect_and_filter_papers(
+            args,
+            existing_links if should_append else set(),
+            existing_titles if should_append else set(),
+        )
 
         if not papers:
             if should_append:
@@ -271,7 +277,11 @@ def main():
 
         # Process and save results
         output_file = process_and_save_results(
-            papers_data, llm_results, LLM_QUESTIONS, result_processor, args.output_filename
+            papers_data,
+            llm_results,
+            LLM_QUESTIONS,
+            result_processor,
+            args.output_filename,
         )
 
         logging.info("=== PROCESSING COMPLETE ===")
@@ -286,12 +296,20 @@ def main():
         llm_analyzer = LLMAnalyzer()
 
         # Set up output environment and get existing data
-        final_filename, final_output_path, should_append, existing_links, existing_titles = setup_output_environment(
-            args, result_processor, LLM_QUESTIONS
-        )
+        (
+            final_filename,
+            final_output_path,
+            should_append,
+            existing_links,
+            existing_titles,
+        ) = setup_output_environment(args, result_processor, LLM_QUESTIONS)
 
         # Collect and filter papers with smart expansion
-        papers = collect_and_filter_papers(args, existing_links if should_append else set(), existing_titles if should_append else set())
+        papers = collect_and_filter_papers(
+            args,
+            existing_links if should_append else set(),
+            existing_titles if should_append else set(),
+        )
 
         if not papers:
             if should_append:
@@ -347,7 +365,11 @@ def main():
 
         # Process and save results using the same logic as other modes
         output_file = process_and_save_results(
-            papers_data, llm_results, LLM_QUESTIONS, result_processor, args.output_filename
+            papers_data,
+            llm_results,
+            LLM_QUESTIONS,
+            result_processor,
+            args.output_filename,
         )
 
         logging.info("=== LOCAL MODE COMPLETE ===")

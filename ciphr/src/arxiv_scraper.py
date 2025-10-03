@@ -23,14 +23,18 @@ def search_arxiv(query: str, max_results: int = 10):
         )
         results = list(search.results())
         logging.info(f"Found {len(results)} results for query: {query}")
-        
+
         # Log the dates of the first few papers for debugging
         if results:
-            for i, paper in enumerate(results[:min(3, len(results))]):
-                submitted_date = paper.published.strftime("%Y-%m-%d") if paper.published else "Unknown"
-                arxiv_id = paper.entry_id.split('/')[-1]
-                logging.info(f"Paper {i+1}: {arxiv_id} (submitted: {submitted_date})")
-        
+            for i, paper in enumerate(results[: min(3, len(results))]):
+                submitted_date = (
+                    paper.published.strftime("%Y-%m-%d")
+                    if paper.published
+                    else "Unknown"
+                )
+                arxiv_id = paper.entry_id.split("/")[-1]
+                logging.info(f"Paper {i + 1}: {arxiv_id} (submitted: {submitted_date})")
+
         return results
     except Exception as e:
         logging.error(f"Error searching arXiv: {e}")
