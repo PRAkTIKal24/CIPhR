@@ -12,10 +12,33 @@
 # CIPhR: Crawl and Ingest Physics Research
 
 > 🚀 **Status**: Production ready with unified workflow ✅  
-> 🔧 **Latest**: Unified command structure with local and CI modes  
+> 🔧 **Latest**: Added a smart search expansion feature to search beyond previously analyzed papers
 > 📅 **Updated**: October 2025 - Modernized with local mode and enhanced features
 
 CIPhR is an automated tool designed to scrape particle physics research papers from arXiv, extract specific information using Large Language Model (LLM) analysis, and generate living markdown tables with research insights. This tool is built with Python, managed by `uv`, and supports both local development and automated CI/CD workflows.
+
+## 📑 Table of Contents
+
+- [Features](#features)
+- [🔧 Installation and Setup](#-installation-and-setup)
+- [Quick Start](#quick-start)
+  - [🏠 Local Usage (Recommended for Development)](#-local-usage-recommended-for-development)
+  - [Configuration](#configuration)
+  - [Command Options](#-command-options)
+  - [⚙️ Available Modes](#️-available-modes)
+- [Project Structure](#project-structure)
+- [Usage](#usage)
+  - [🚀 Local Development Mode](#-local-development-mode-recommended-for-development)
+  - [🔧 CI/CD Workflow Modes](#-cicd-workflow-modes)
+- [GitHub Actions Automation](#github-actions-automation)
+  - [✅ Production CI/CD Workflow](#-production-cicd-workflow)
+  - [Setting up API Keys and Webhooks](#setting-up-api-keys-and-webhooks-in-github-secrets)
+- [🚀 Mattermost ML4DM Bot Integration](#-mattermost-ml4dm-bot-integration)
+- [Extending and Customizing](#extending-and-customizing)
+- [Troubleshooting](#troubleshooting)
+- [Quick Reference](#quick-reference)
+- [Example Output](#example-output)
+- [License](#license)
 
 ## Features
 
