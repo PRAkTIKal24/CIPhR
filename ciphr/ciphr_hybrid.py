@@ -8,6 +8,7 @@ from .config.config import (
     ARXIV_TAGS,
     LLM_QUESTIONS,
     MAX_ARXIV_RESULTS,
+    MAX_EXPANSION_RESULTS,
     MAX_CONTENT_LENGTH_FOR_LLM,
     LOG_PREVIEW_LENGTH,
     ERROR_MESSAGE_LENGTH,
@@ -224,9 +225,29 @@ def main():
         if should_append and (existing_links or existing_titles):
             original_count = len(papers)
             papers = filter_new_papers(papers, existing_links, existing_titles)
-            logging.info(
-                f"Processing {len(papers)} new papers (filtered {original_count - len(papers)} duplicates)"
-            )
+            
+            # Smart expansion: if all papers are duplicates, try searching more
+            if len(papers) == 0 and original_count > 0:
+                logging.warning(f"All {original_count} papers were duplicates. Expanding search to find new papers...")
+                expanded_results = min(args.max_results * 3, MAX_EXPANSION_RESULTS)  # Cap at config limit to avoid rate limits
+                logging.info(f"Searching with expanded results: {expanded_results}")
+                papers_expanded = search_arxiv(query=arxiv_query, max_results=expanded_results)
+                papers = filter_new_papers(papers_expanded, existing_links, existing_titles)
+                total_checked = len(papers_expanded)
+                
+                # Limit to user's original max_results to respect their intention
+                if len(papers) > args.max_results:
+                    papers = papers[:args.max_results]
+                    logging.info(f"Expanded search: found {len(papers)} new papers after checking {total_checked} total papers (limited to user's max_results={args.max_results})")
+                else:
+                    logging.info(f"Expanded search: found {len(papers)} new papers after checking {total_checked} total papers")
+            
+            if len(papers) > 0:
+                logging.info(
+                    f"Processing {len(papers)} new papers (filtered {original_count - len(papers)} duplicates from initial search)"
+                )
+            else:
+                logging.info(f"Processing {len(papers)} new papers (filtered {original_count} duplicates)")
         else:
             logging.info(f"Processing {len(papers)} papers")
 
@@ -436,9 +457,29 @@ def main():
         if should_append and (existing_links or existing_titles):
             original_count = len(papers)
             papers = filter_new_papers(papers, existing_links, existing_titles)
-            logging.info(
-                f"Processing {len(papers)} new papers (filtered {original_count - len(papers)} duplicates)"
-            )
+            
+            # Smart expansion: if all papers are duplicates, try searching more
+            if len(papers) == 0 and original_count > 0:
+                logging.warning(f"All {original_count} papers were duplicates. Expanding search to find new papers...")
+                expanded_results = min(args.max_results * 3, MAX_EXPANSION_RESULTS)  # Cap at config limit to avoid rate limits
+                logging.info(f"Searching with expanded results: {expanded_results}")
+                papers_expanded = search_arxiv(query=arxiv_query, max_results=expanded_results)
+                papers = filter_new_papers(papers_expanded, existing_links, existing_titles)
+                total_checked = len(papers_expanded)
+                
+                # Limit to user's original max_results to respect their intention
+                if len(papers) > args.max_results:
+                    papers = papers[:args.max_results]
+                    logging.info(f"Expanded search: found {len(papers)} new papers after checking {total_checked} total papers (limited to user's max_results={args.max_results})")
+                else:
+                    logging.info(f"Expanded search: found {len(papers)} new papers after checking {total_checked} total papers")
+            
+            if len(papers) > 0:
+                logging.info(
+                    f"Processing {len(papers)} new papers (filtered {original_count - len(papers)} duplicates from initial search)"
+                )
+            else:
+                logging.info(f"Processing {len(papers)} new papers (filtered {original_count} duplicates)")
         else:
             logging.info(f"Processing {len(papers)} papers")
 
