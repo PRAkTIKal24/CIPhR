@@ -6,7 +6,7 @@ import sys
 
 from .config.config import (
     ARXIV_TAGS,
-    LLM_QUESTIONS,
+    get_llm_questions,
     MAX_ARXIV_RESULTS,
     MAX_EXPANSION_RESULTS,
     MAX_CONTENT_LENGTH_FOR_LLM,
@@ -94,6 +94,12 @@ def main():
         logging.getLogger().addHandler(console_handler)
 
     os.makedirs(args.output_dir, exist_ok=True)
+
+    # Get LLM questions for the research output table (same for local and CI)
+    LLM_QUESTIONS = get_llm_questions()
+    
+    if args.verbose:
+        logging.info(f"Using {len(LLM_QUESTIONS)} LLM questions for research table")
 
     if args.mode in ["collect", "full"]:
         logging.info("=== DATA COLLECTION PHASE ===")
