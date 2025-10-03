@@ -40,11 +40,9 @@ jobs:
       run: |
         uv sync --refresh
         
-    - name: Run Data Collection
-      id: data-collection
+    - name: Run data collection
       run: |
-        cd ${{ github.workspace }}
-        uv run ciphr --mode collect --max_results 10 --output_filename hepex.md --tags hep-ex --verbose
+        uv run ciphr --mode collect --max_results 5 --output_filename hepex.md --tags hep-ex --verbose
         
         # Set output based on whether papers_data.json was created and has content
         if [ -f "output/papers_data.json" ]; then
