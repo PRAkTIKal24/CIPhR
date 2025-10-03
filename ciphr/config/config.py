@@ -15,6 +15,7 @@ LLM_QUESTIONS = [
 
 ARXIV_TAGS = "hep-ph"
 MAX_ARXIV_RESULTS = 5
+MAX_EXPANSION_RESULTS = 25  # Maximum number of papers to search when expanding duplicate search
 
 # Content processing limits
 # Note: This limit applies ONLY to the extracted PDF content, not to title/abstract which are sent in full
