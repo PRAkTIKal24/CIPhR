@@ -130,10 +130,9 @@ jobs:
             prompt_questions = get_ci_analysis_questions()
             
             prompt_intro = "Analyze this physics research paper and answer the following questions. Respond with a JSON object with the exact question text as keys.\\n\\nQuestions:\\n"
-            prompt_intro += f'1. "{prompt_questions[0]}"\\n'
-            prompt_intro += f'2. "{prompt_questions[1]}"\\n' 
-            prompt_intro += f'3. "{prompt_questions[2]}"\\n'
-            prompt_intro += f'4. "{prompt_questions[3]}"\\n\\n'
+            for i, question in enumerate(prompt_questions, 1):
+                prompt_intro += f'{i}. "{question}"\\n'
+            prompt_intro += "\\n"
             
             prompt_format = "Response format:\\n{\\n"
             for q in prompt_questions:
