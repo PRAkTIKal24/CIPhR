@@ -83,6 +83,8 @@ jobs:
         path: output/
 
     - name: Analyze papers dynamically with Gemini
+      env:
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       run: |
         # Load papers and analyze each one dynamically
         python << 'EOF'
@@ -90,6 +92,12 @@ jobs:
         import os
         import subprocess
         import tempfile
+
+        # Get API key from environment
+        api_key = os.getenv('GEMINI_API_KEY')
+        if not api_key:
+            print("ERROR: GEMINI_API_KEY not found in environment")
+            exit(1)
 
         # Load papers data
         with open('output/papers_data.json', 'r') as f:
@@ -123,16 +131,16 @@ jobs:
                 "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper"
             ]
             
-            prompt_intro = "Analyze this physics research paper and answer the following questions. Respond with a JSON object with the exact question text as keys.\n\nQuestions:\n"
-            prompt_intro += "1. \"" + prompt_questions[0] + "\"\n"
-            prompt_intro += "2. \"" + prompt_questions[1] + "\"\n" 
-            prompt_intro += "3. \"" + prompt_questions[2] + "\"\n"
-            prompt_intro += "4. \"" + prompt_questions[3] + "\"\n\n"
+            prompt_intro = "Analyze this physics research paper and answer the following questions. Respond with a JSON object with the exact question text as keys.\\n\\nQuestions:\\n"
+            prompt_intro += "1. \\"" + prompt_questions[0] + "\\"\\n"
+            prompt_intro += "2. \\"" + prompt_questions[1] + "\\"\\n" 
+            prompt_intro += "3. \\"" + prompt_questions[2] + "\\"\\n"
+            prompt_intro += "4. \\"" + prompt_questions[3] + "\\"\\n\\n"
             
-            prompt_format = "Response format:\n{\n"
+            prompt_format = "Response format:\\n{\\n"
             for q in prompt_questions:
-                prompt_format += "  \"" + q + "\": \"Your answer here\",\n"
-            prompt_format = prompt_format.rstrip(",\n") + "\n}\n\nPaper to analyze:\n"
+                prompt_format += "  \\"" + q + "\\": \\"Your answer here\\",\\n"
+            prompt_format = prompt_format.rstrip(",\\n") + "\\n}\\n\\nPaper to analyze:\\n"
             
             prompt = prompt_intro + prompt_format + json.dumps(individual_paper, indent=2)
 
@@ -142,10 +150,10 @@ jobs:
                 prompt_file = f.name
 
             try:
-                # Call Gemini API using gcloud (fallback approach)
+                # Call Gemini API using curl
+                api_url = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={api_key}'
                 result = subprocess.run([
-                    'curl', '-X', 'POST',
-                    f'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${{{{ secrets.GEMINI_API_KEY }}}}',
+                    'curl', '-X', 'POST', api_url,
                     '-H', 'Content-Type: application/json',
                     '-d', json.dumps({
                         "contents": [{
