@@ -116,25 +116,25 @@ jobs:
                 paper_file = f.name
 
             # Create prompt for this paper
-            prompt_template = '''Analyze this physics research paper and answer the following questions. Respond with a JSON object with the exact question text as keys.
-
-Questions:
-1. "What is the main physics phenomenon studied by this paper"
-2. "Is this work related to dark matter searches? If yes, how?"
-3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
-4. "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper"
-
-Response format:
-{
-  "What is the main physics phenomenon studied by this paper": "Your answer here",
-  "Is this work related to dark matter searches? If yes, how?": "Your answer here",
-  "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here",
-  "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper": "Your answer here"
-}
-
-Paper to analyze:
-'''
-            prompt = prompt_template + json.dumps(individual_paper, indent=2)
+            prompt_questions = [
+                "What is the main physics phenomenon studied by this paper",
+                "Is this work related to dark matter searches? If yes, how?",
+                "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?",
+                "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper"
+            ]
+            
+            prompt_intro = "Analyze this physics research paper and answer the following questions. Respond with a JSON object with the exact question text as keys.\n\nQuestions:\n"
+            prompt_intro += "1. \"" + prompt_questions[0] + "\"\n"
+            prompt_intro += "2. \"" + prompt_questions[1] + "\"\n" 
+            prompt_intro += "3. \"" + prompt_questions[2] + "\"\n"
+            prompt_intro += "4. \"" + prompt_questions[3] + "\"\n\n"
+            
+            prompt_format = "Response format:\n{\n"
+            for q in prompt_questions:
+                prompt_format += "  \"" + q + "\": \"Your answer here\",\n"
+            prompt_format = prompt_format.rstrip(",\n") + "\n}\n\nPaper to analyze:\n"
+            
+            prompt = prompt_intro + prompt_format + json.dumps(individual_paper, indent=2)
 
             # Write prompt to file
             with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
