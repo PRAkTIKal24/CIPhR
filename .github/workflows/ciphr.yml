@@ -41,6 +41,7 @@ jobs:
         uv sync --refresh
         
     - name: Run data collection
+      id: data-collection
       run: |
         uv run ciphr --mode collect --max_results 5 --output_filename hepex.md --tags hep-ex --verbose
         
