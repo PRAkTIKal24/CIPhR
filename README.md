@@ -24,6 +24,7 @@ CIPhR is an automated tool designed to scrape particle physics research papers f
 - **📊 Intelligent Tables**: Generates markdown tables with chronological sorting (newest first)
 - **🔄 Multiple Modes**: Local development, data collection, processing, and CI workflows
 - **🛡️ Robust Processing**: Error handling, duplicate detection, and question-based file management
+- **🧠 Smart Expansion Search**: Automatically expands search when initial results are stale/duplicates, finding fresh papers while respecting user limits and rate constraints
 - **📝 Smart Content Processing**: Automatic reference stripping and conclusions extraction for optimal LLM analysis
 - **🎯 Enhanced Paper Coverage**: 50K character limit ensures complete paper analysis (15x improvement)
 - **🌐 WordPress Integration**: Automatic publishing to websites with responsive tables
@@ -48,16 +49,13 @@ CIPhR is an automated tool designed to scrape particle physics research papers f
 3.  **Create a virtual environment and install dependencies**:
 
     ```bash
-    uv venv
-    source .venv/bin/activate
-    uv pip install -e .
-    uv sync
+    uv sync --refresh
     ```
 
     If you want to develop new features, install the `dev-dependencies` as well:
 
     ```bash
-    uv pip install --group dev
+    uv sync --group dev
     ```
 
 4. **Configure API Keys**:
