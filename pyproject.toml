@@ -18,7 +18,6 @@ dependencies = [
 
 [project.scripts]
 ciphr = "ciphr.ciphr_hybrid:main"
-ciphr-legacy = "ciphr.ciphr:main"
 
 [dependency-groups]
 dev = [

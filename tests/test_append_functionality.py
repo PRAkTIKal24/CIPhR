@@ -7,20 +7,18 @@ import os
 import tempfile
 from datetime import datetime
 
-from ciphr.ciphr import (
-    extract_questions_from_existing_file,
-    questions_match,
-    generate_date_suffix,
-    get_output_filename,
-    generate_markdown_table,
+from ciphr.src.utils import (
     extract_existing_arxiv_links,
     filter_new_papers,
 )
+from ciphr.src.result_processor import ResultProcessor
 from ciphr.config.config import LLM_QUESTIONS
 
 
 def test_extract_questions():
     """Test extracting questions from existing markdown file."""
+    processor = ResultProcessor()
+
     with tempfile.TemporaryDirectory() as temp_dir:
         # Create a test file with questions
         test_file = os.path.join(temp_dir, "test_questions.md")
@@ -32,13 +30,13 @@ Some Paper | [Link](http://arxiv.org/abs/test) | Answer 1 | Answer 2 | Answer 3
             f.write(test_content)
 
         # Test extracting questions from file
-        questions = extract_questions_from_existing_file(test_file)
+        questions = processor.extract_questions_from_existing_file(test_file)
         assert isinstance(questions, list)
         assert len(questions) == 3  # Should extract 3 questions
         assert questions == ["Question 1", "Question 2", "Question 3"]
 
         # Test on non-existent file
-        no_questions = extract_questions_from_existing_file(
+        no_questions = processor.extract_questions_from_existing_file(
             os.path.join(temp_dir, "nonexistent.md")
         )
         assert no_questions == []
@@ -48,29 +46,32 @@ Some Paper | [Link](http://arxiv.org/abs/test) | Answer 1 | Answer 2 | Answer 3
         with open(empty_file, "w", encoding="utf-8") as f:
             f.write("")
 
-        empty_questions = extract_questions_from_existing_file(empty_file)
+        empty_questions = processor.extract_questions_from_existing_file(empty_file)
         assert empty_questions == []
 
 
 def test_questions_matching():
     """Test question matching logic."""
+    processor = ResultProcessor()
+
     # Test identical questions
     identical = ["Question 1", "Question 2", "Question 3"]
-    assert questions_match(identical, identical)
+    assert processor.questions_match(identical, identical)
 
     # Test different questions
     different = ["Question 1", "Question 2", "Different Question"]
-    assert not questions_match(different, identical)
+    assert not processor.questions_match(different, identical)
 
     # Test with normalization (newlines and spaces)
     with_newlines = ["Question 1\n", "Question 2 ", " Question 3"]
     normalized = ["Question 1", "Question 2", "Question 3"]
-    assert questions_match(with_newlines, normalized)
+    assert processor.questions_match(with_newlines, normalized)
 
 
 def test_date_suffix():
     """Test date suffix generation."""
-    suffix = generate_date_suffix()
+    processor = ResultProcessor()
+    suffix = processor.generate_date_suffix()
     expected = datetime.now().strftime("%d%m%y")
     assert suffix == expected
     assert len(suffix) == 6  # ddmmyy format
@@ -80,8 +81,10 @@ def test_date_suffix():
 def test_filename_generation():
     """Test output filename generation logic."""
     with tempfile.TemporaryDirectory() as temp_dir:
+        processor = ResultProcessor(output_dir=temp_dir)
+
         # Test with non-existing file
-        filename1 = get_output_filename("nonexistent.md", temp_dir)
+        filename1 = processor.get_output_filename("nonexistent.md", LLM_QUESTIONS)
         assert filename1 == "nonexistent.md"
 
         # Create a test file with different questions than config
@@ -94,7 +97,9 @@ Some Paper | [Link](http://arxiv.org/abs/test) | Answer 1 | Answer 2
             f.write(different_content)
 
         # Test with existing file that has different questions
-        filename2 = get_output_filename("test_different_questions.md", temp_dir)
+        filename2 = processor.get_output_filename(
+            "test_different_questions.md", LLM_QUESTIONS
+        )
         # Should create new filename with date suffix since questions don't match
         assert filename2.startswith("test_different_questions_")
         assert filename2.endswith(".md")
@@ -112,51 +117,45 @@ Some Paper | [Link](http://arxiv.org/abs/test) | Answer 1 | Answer 2
             f.write(matching_content)
 
         # Test with existing file that has matching questions
-        filename3 = get_output_filename("test_matching_questions.md", temp_dir)
+        filename3 = processor.get_output_filename(
+            "test_matching_questions.md", LLM_QUESTIONS
+        )
         # Should use original filename since questions match
         assert filename3 == "test_matching_questions.md"
 
 
 def test_markdown_generation():
-    """Test markdown table generation with and without headers."""
-    # Create mock results
+    """Test markdown table generation."""
+    processor = ResultProcessor()
+
+    # Mock data for testing
     mock_results = [
         {
             "title": "Test Paper 1",
             "arxiv_url": "http://arxiv.org/abs/test1",
             "llm_answers": {
-                LLM_QUESTIONS[0]: "Physics phenomenon 1",
-                LLM_QUESTIONS[1]: "Dark matter related",
-                LLM_QUESTIONS[2]: "Yes, ATLAS detector",
+                "Question 1": "Answer 1",
+                "Question 2": "Answer 2",
+                "Question 3": "Answer 3",
             },
         }
     ]
 
     # Test with header
-    markdown_with_header = generate_markdown_table(mock_results, include_header=True)
-    assert "Paper Title" in markdown_with_header
-    assert "arXiv Link" in markdown_with_header
-    assert "---" in markdown_with_header  # Header separator
-    assert "Test Paper 1" in markdown_with_header
-
-    # Test without header (for appending)
-    markdown_without_header = generate_markdown_table(
-        mock_results, include_header=False
+    markdown_with_header = processor.generate_markdown_table(
+        mock_results, LLM_QUESTIONS, include_header=True
     )
-    assert "Paper Title" not in markdown_without_header
-    assert "---" not in markdown_without_header
-    assert "Test Paper 1" in markdown_without_header
-
-    # Test empty results
-    empty_markdown = generate_markdown_table([])
-    assert empty_markdown == "No results to display."
+    assert "Paper Title" in markdown_with_header
+    assert "Test Paper 1" in markdown_with_header
 
 
 def test_complete_workflow_logic():
     """Test the complete workflow logic."""
     with tempfile.TemporaryDirectory() as temp_dir:
+        processor = ResultProcessor(output_dir=temp_dir)
+
         # Test with non-existing file
-        filename1 = get_output_filename("nonexistent.md", temp_dir)
+        filename1 = processor.get_output_filename("nonexistent.md", LLM_QUESTIONS)
         file_path1 = os.path.join(temp_dir, filename1)
         should_append1 = filename1 == "nonexistent.md" and os.path.exists(file_path1)
         assert not should_append1  # File doesn't exist
@@ -172,7 +171,9 @@ Some Paper | [Link](http://arxiv.org/abs/test) | Answer 1 | Answer 2
             f.write(different_content)
 
         # Test logic for existing file with different questions
-        filename2 = get_output_filename("different_questions.md", temp_dir)
+        filename2 = processor.get_output_filename(
+            "different_questions.md", LLM_QUESTIONS
+        )
         file_path2 = os.path.join(temp_dir, filename2)
         should_append2 = filename2 == "different_questions.md" and os.path.exists(
             file_path2

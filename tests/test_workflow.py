@@ -6,13 +6,11 @@ This test creates mock scenarios and validates the behavior.
 import os
 import tempfile
 
-from ciphr.ciphr import (
-    generate_date_suffix,
-    get_output_filename,
-    generate_markdown_table,
+from ciphr.src.utils import (
     extract_existing_arxiv_links,
     filter_new_papers,
 )
+from ciphr.src.result_processor import ResultProcessor
 from ciphr.config.config import LLM_QUESTIONS
 
 
@@ -21,6 +19,7 @@ def test_complete_append_workflow():
 
     # Create a temporary directory for testing
     with tempfile.TemporaryDirectory() as temp_dir:
+        processor = ResultProcessor(output_dir=temp_dir)
         print(f"\n=== Testing Complete Workflow in {temp_dir} ===")
 
         # Mock results for testing
@@ -40,7 +39,7 @@ def test_complete_append_workflow():
 
         # Scenario 1: New file creation
         print("\n--- Scenario 1: Creating new file ---")
-        filename1 = get_output_filename("physics_papers.md", temp_dir)
+        filename1 = processor.get_output_filename("physics_papers.md", LLM_QUESTIONS)
         output_path1 = os.path.join(temp_dir, filename1)
         should_append1 = filename1 == "physics_papers.md" and os.path.exists(
             output_path1
@@ -50,7 +49,9 @@ def test_complete_append_workflow():
         print(f"Should append: {should_append1}")
 
         # Create the file
-        markdown_content = generate_markdown_table(mock_results, include_header=True)
+        markdown_content = processor.generate_markdown_table(
+            mock_results, LLM_QUESTIONS, include_header=True
+        )
         with open(output_path1, "w", encoding="utf-8") as f:
             f.write(markdown_content)
 
@@ -61,7 +62,7 @@ def test_complete_append_workflow():
 
         # Scenario 2: Appending to existing file with same questions
         print("\n--- Scenario 2: Appending to existing file ---")
-        filename2 = get_output_filename("physics_papers.md", temp_dir)
+        filename2 = processor.get_output_filename("physics_papers.md", LLM_QUESTIONS)
         output_path2 = os.path.join(temp_dir, filename2)
         should_append2 = filename2 == "physics_papers.md" and os.path.exists(
             output_path2
@@ -84,8 +85,8 @@ def test_complete_append_workflow():
                 }
             ]
 
-            markdown_append = generate_markdown_table(
-                new_mock_results, include_header=False
+            markdown_append = processor.generate_markdown_table(
+                new_mock_results, LLM_QUESTIONS, include_header=False
             )
             with open(output_path2, "a", encoding="utf-8") as f:
                 f.write(markdown_append)
@@ -108,11 +109,13 @@ Some Paper | [Link](http://arxiv.org/abs/test) | Answer 1 | Answer 2
             f.write(different_content)
 
         # Test filename generation for this file
-        filename3 = get_output_filename("different_questions.md", temp_dir)
+        filename3 = processor.get_output_filename(
+            "different_questions.md", LLM_QUESTIONS
+        )
         print(f"Filename for file with different questions: {filename3}")
 
         # Should create new file with date suffix since questions don't match
-        expected_suffix = generate_date_suffix()
+        expected_suffix = processor.generate_date_suffix()
         expected_filename = f"different_questions_{expected_suffix}.md"
         assert filename3 == expected_filename, (
             f"Expected {expected_filename}, got {filename3}"

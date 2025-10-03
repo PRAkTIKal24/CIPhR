@@ -6,16 +6,21 @@ import sys
 
 from .config.config import (
     ARXIV_TAGS,
-    LLM_QUESTIONS,
+    get_llm_questions,
     MAX_ARXIV_RESULTS,
     MAX_CONTENT_LENGTH_FOR_LLM,
     LOG_PREVIEW_LENGTH,
     ERROR_MESSAGE_LENGTH,
 )
-from .src.arxiv_scraper import search_arxiv
 from .src.data_processor import DataProcessor
 from .src.llm_analyzer import LLMAnalyzer
 from .src.result_processor import ResultProcessor
+from .src.utils import (
+    setup_output_environment,
+    collect_and_filter_papers,
+    collect_and_validate_paper_data,
+    process_and_save_results,
+)
 
 # Constants for parsing
 PAPER_SEPARATOR = "---PAPER---"
@@ -25,105 +30,6 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
-
-
-def extract_existing_arxiv_links(file_path: str) -> set[str]:
-    """Extract all arXiv links from existing markdown file."""
-    if not os.path.exists(file_path):
-        return set()
-
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
-
-        # Extract arXiv links using regex pattern
-        import re
-
-        arxiv_pattern = r"\[Link\]\((http://arxiv\.org/abs/[^)]+)\)"
-        matches = re.findall(arxiv_pattern, content)
-
-        return set(matches)
-    except Exception as e:
-        logging.warning(f"Error extracting arXiv links from {file_path}: {e}")
-        return set()
-
-
-def extract_existing_paper_titles(file_path: str) -> set[str]:
-    """Extract all paper titles from existing markdown file for more robust duplicate detection."""
-    if not os.path.exists(file_path):
-        return set()
-
-    try:
-        with open(file_path, "r", encoding="utf-8") as f:
-            content = f.read()
-
-        # Extract titles from markdown table rows
-        # Format: Title | [Link](arxiv_url) | ...
-
-        lines = content.split("\n")
-        titles = set()
-
-        header_skipped = False
-        for line in lines:
-            # Skip lines that are not table rows
-            if "|" not in line:
-                continue
-
-            # Skip separator lines (contain dashes)
-            if "-" in line and all(c in "|-: " for c in line.strip()):
-                continue
-
-            # Skip the header row (first table row after separator)
-            if not header_skipped:
-                header_skipped = True
-                continue
-
-            # Split by | and get first column (title)
-            parts = line.split("|")
-            if len(parts) >= 2:
-                title = parts[0].strip()
-                if title:  # Only add non-empty titles
-                    # Normalize title for comparison (strip whitespace, convert to lowercase)
-                    normalized_title = title.strip().lower()
-                    titles.add(normalized_title)
-
-        return titles
-    except Exception as e:
-        logging.warning(f"Error extracting paper titles from {file_path}: {e}")
-        return set()
-
-
-def filter_new_papers(
-    papers: list, existing_links: set[str], existing_titles: set[str] = None
-) -> list:
-    """Filter out papers that already exist in the output file based on arXiv links and titles."""
-    new_papers = []
-    skipped_count = 0
-
-    if existing_titles is None:
-        existing_titles = set()
-
-    for paper in papers:
-        paper_link = paper.entry_id
-        paper_title_normalized = paper.title.strip().lower()
-
-        # Check for duplicates by both arxiv link and title
-        is_duplicate_link = paper_link in existing_links
-        is_duplicate_title = paper_title_normalized in existing_titles
-
-        if is_duplicate_link or is_duplicate_title:
-            skipped_count += 1
-            reason = "link" if is_duplicate_link else "title"
-            logging.info(
-                f"Skipping duplicate paper ({reason}): {paper.title} ({paper_link})"
-            )
-        else:
-            new_papers.append(paper)
-
-    if skipped_count > 0:
-        logging.info(f"Skipped {skipped_count} duplicate papers")
-
-    return new_papers
 
 
 def main():
@@ -187,6 +93,12 @@ def main():
 
     os.makedirs(args.output_dir, exist_ok=True)
 
+    # Get LLM questions for the research output table (same for local and CI)
+    LLM_QUESTIONS = get_llm_questions()
+
+    if args.verbose:
+        logging.info(f"Using {len(LLM_QUESTIONS)} LLM questions for research table")
+
     if args.mode in ["collect", "full"]:
         logging.info("=== DATA COLLECTION PHASE ===")
 
@@ -194,41 +106,21 @@ def main():
         data_processor = DataProcessor(args.output_dir)
         result_processor = ResultProcessor(args.output_dir)
 
-        # Determine final output filename and check for duplicates
-        final_filename = result_processor.get_output_filename(
-            args.output_filename, LLM_QUESTIONS
+        # Set up output environment and get existing data
+        (
+            final_filename,
+            final_output_path,
+            should_append,
+            existing_links,
+            existing_titles,
+        ) = setup_output_environment(args, result_processor, LLM_QUESTIONS)
+
+        # Collect and filter papers with smart expansion
+        papers = collect_and_filter_papers(
+            args,
+            existing_links if should_append else set(),
+            existing_titles if should_append else set(),
         )
-        final_output_path = os.path.join(args.output_dir, final_filename)
-        should_append = final_filename == args.output_filename and os.path.exists(
-            final_output_path
-        )
-
-        # Get existing links and titles to avoid duplicates
-        existing_links = set()
-        existing_titles = set()
-        if should_append:
-            existing_links = extract_existing_arxiv_links(final_output_path)
-            existing_titles = extract_existing_paper_titles(final_output_path)
-            logging.info(f"Found {len(existing_links)} existing papers in output file")
-
-        logging.info(
-            f"Starting data collection with tags: {args.tags}, max_results: {args.max_results}"
-        )
-
-        # Search arXiv
-        arxiv_tags_formatted = args.tags.replace(",", " OR cat:")
-        arxiv_query = f"cat:{arxiv_tags_formatted}"
-        papers = search_arxiv(query=arxiv_query, max_results=args.max_results)
-
-        # Filter out duplicates (by both links and titles)
-        if should_append and (existing_links or existing_titles):
-            original_count = len(papers)
-            papers = filter_new_papers(papers, existing_links, existing_titles)
-            logging.info(
-                f"Processing {len(papers)} new papers (filtered {original_count - len(papers)} duplicates)"
-            )
-        else:
-            logging.info(f"Processing {len(papers)} papers")
 
         if not papers:
             if should_append:
@@ -237,11 +129,9 @@ def main():
                 logging.info("No papers found to process.")
             return
 
-        # Collect paper data
-        papers_data = data_processor.collect_paper_data(papers)
-
+        # Collect paper data and validate
+        papers_data = collect_and_validate_paper_data(papers, data_processor)
         if not papers_data:
-            logging.info("No paper data collected. Exiting.")
             return
 
         # Save papers data for LLM processing
@@ -385,14 +275,13 @@ def main():
             f"Final LLM results count: {len(llm_results)} (matching {len(papers_data)} papers)"
         )
 
-        # Combine results
-        combined_results = result_processor.combine_results(
-            papers_data, llm_results, LLM_QUESTIONS
-        )
-
-        # Save final markdown
-        output_file = result_processor.save_results(
-            combined_results, LLM_QUESTIONS, args.output_filename
+        # Process and save results
+        output_file = process_and_save_results(
+            papers_data,
+            llm_results,
+            LLM_QUESTIONS,
+            result_processor,
+            args.output_filename,
         )
 
         logging.info("=== PROCESSING COMPLETE ===")
@@ -406,41 +295,21 @@ def main():
         result_processor = ResultProcessor(args.output_dir)
         llm_analyzer = LLMAnalyzer()
 
-        # Determine final output filename and check for duplicates
-        final_filename = result_processor.get_output_filename(
-            args.output_filename, LLM_QUESTIONS
+        # Set up output environment and get existing data
+        (
+            final_filename,
+            final_output_path,
+            should_append,
+            existing_links,
+            existing_titles,
+        ) = setup_output_environment(args, result_processor, LLM_QUESTIONS)
+
+        # Collect and filter papers with smart expansion
+        papers = collect_and_filter_papers(
+            args,
+            existing_links if should_append else set(),
+            existing_titles if should_append else set(),
         )
-        final_output_path = os.path.join(args.output_dir, final_filename)
-        should_append = final_filename == args.output_filename and os.path.exists(
-            final_output_path
-        )
-
-        # Get existing links and titles to avoid duplicates
-        existing_links = set()
-        existing_titles = set()
-        if should_append:
-            existing_links = extract_existing_arxiv_links(final_output_path)
-            existing_titles = extract_existing_paper_titles(final_output_path)
-            logging.info(f"Found {len(existing_links)} existing papers in output file")
-
-        logging.info(
-            f"Starting local workflow with tags: {args.tags}, max_results: {args.max_results}"
-        )
-
-        # Search arXiv
-        arxiv_tags_formatted = args.tags.replace(",", " OR cat:")
-        arxiv_query = f"cat:{arxiv_tags_formatted}"
-        papers = search_arxiv(query=arxiv_query, max_results=args.max_results)
-
-        # Filter out duplicates (by both links and titles)
-        if should_append and (existing_links or existing_titles):
-            original_count = len(papers)
-            papers = filter_new_papers(papers, existing_links, existing_titles)
-            logging.info(
-                f"Processing {len(papers)} new papers (filtered {original_count - len(papers)} duplicates)"
-            )
-        else:
-            logging.info(f"Processing {len(papers)} papers")
 
         if not papers:
             if should_append:
@@ -449,11 +318,9 @@ def main():
                 logging.info("No papers found to process.")
             return
 
-        # Collect paper data
-        papers_data = data_processor.collect_paper_data(papers)
-
+        # Collect paper data and validate
+        papers_data = collect_and_validate_paper_data(papers, data_processor)
         if not papers_data:
-            logging.info("No paper data collected. Exiting.")
             return
 
         # Analyze papers with LLM (local API key usage)
@@ -496,14 +363,13 @@ def main():
                 }
                 llm_results.append(json.dumps(fallback_result))
 
-        # Combine results using the same logic as other modes
-        combined_results = result_processor.combine_results(
-            papers_data, llm_results, LLM_QUESTIONS
-        )
-
-        # Save final markdown (using prepend logic)
-        output_file = result_processor.save_results(
-            combined_results, LLM_QUESTIONS, args.output_filename
+        # Process and save results using the same logic as other modes
+        output_file = process_and_save_results(
+            papers_data,
+            llm_results,
+            LLM_QUESTIONS,
+            result_processor,
+            args.output_filename,
         )
 
         logging.info("=== LOCAL MODE COMPLETE ===")
