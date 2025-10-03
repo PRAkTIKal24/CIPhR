@@ -12,8 +12,8 @@ name: CIPhR Daily Research Ingestion (Hybrid)
 
 on:
   schedule:
-    # Runs every day at 00:00 UTC
-    - cron: '0 0 * * *'
+    # Runs every day at 7:00 AM UK time (7:00 UTC in winter, 8:00 AM in summer)
+    - cron: '0 7 * * *'
   workflow_dispatch: # Allows manual triggering
 
 jobs:
@@ -28,24 +28,23 @@ jobs:
       with:
         ssh-key: ${{secrets.PROD_BOT_KEY}}
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
       with:
-        python-version: '3.11'
-
-    - name: Install uv and dependencies
+        version: "latest"
+        
+    - name: Set up Python
+      run: uv python install 3.11
+        
+    - name: Install dependencies
       run: |
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        export PATH="$HOME/.local/bin:$PATH"
-        uv venv
-        source .venv/bin/activate
-        uv pip install -e .
-
+        uv sync --refresh
+        
     - name: Run Data Collection
       id: data-collection
       run: |
         cd ${{ github.workspace }}
-        uv run ciphr --mode collect --max_results 5 --output_filename hepex.md --tags hep-ex --verbose
+        uv run ciphr --mode collect --max_results 10 --output_filename hepex.md --tags hep-ex --verbose
         
         # Set output based on whether papers_data.json was created and has content
         if [ -f "output/papers_data.json" ]; then
@@ -83,12 +82,14 @@ jobs:
         name: collected-data
         path: output/
 
-    - name: Analyze papers individually with Gemini
+    - name: Analyze papers dynamically with Gemini
       run: |
-        # Process each paper individually (original approach)
+        # Load papers and analyze each one dynamically
         python << 'EOF'
         import json
         import os
+        import subprocess
+        import tempfile
 
         # Load papers data
         with open('output/papers_data.json', 'r') as f:
@@ -96,11 +97,10 @@ jobs:
 
         print(f"Processing {len(papers)} papers individually...")
 
-        # Create individual results array
-        all_results = []
-
+        results = []
+        
         for i, paper in enumerate(papers):
-            print(f"Preparing paper {i+1}/{len(papers)}: {paper['title'][:50]}...")
+            print(f"Analyzing paper {i+1}/{len(papers)}: {paper['title'][:50]}...")
             
             # Create individual paper file for this analysis
             individual_paper = {
@@ -110,182 +110,97 @@ jobs:
                 "arxiv_url": paper["arxiv_url"]
             }
             
-            with open(f'paper_{i+1}.json', 'w') as f:
+            # Write paper to temporary file
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
                 json.dump(individual_paper, f, indent=2)
-            
-            print(f"Created paper_{i+1}.json for individual analysis")
+                paper_file = f.name
 
-        print("All papers prepared for individual analysis")
-        EOF
+            # Create prompt for this paper
+            prompt = f"""Analyze this physics research paper and answer the following questions. Respond with a JSON object with the exact question text as keys.
 
-    - name: Analyze Paper 1
-      id: analyze-1
-      if: needs.collect_data.outputs.papers-found >= 1
-      uses: 'google-github-actions/run-gemini-cli@v0'
-      with:
-        gemini_api_key: '${{ secrets.GEMINI_API_KEY }}'
-        prompt: |
-          Analyze this physics research paper and answer the following questions. Respond with a JSON object with the exact question text as keys.
+Questions:
+1. "What is the main physics phenomenon studied by this paper"
+2. "Is this work related to dark matter searches? If yes, how?"
+3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
+4. "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper"
 
-          Questions:
-          1. "What is the main physics phenomenon studied by this paper"
-          2. "Is this work related to dark matter searches? If yes, how?"
-          3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
-          4. "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper"
+Response format:
+{{
+  "What is the main physics phenomenon studied by this paper": "Your answer here",
+  "Is this work related to dark matter searches? If yes, how?": "Your answer here",
+  "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here",
+  "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper": "Your answer here"
+}}
 
-          Response format:
-          {
-            "What is the main physics phenomenon studied by this paper": "Your answer here",
-            "Is this work related to dark matter searches? If yes, how?": "Your answer here",
-            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here",
-            "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper": "Your answer here"
-          }
+Paper to analyze:
+{json.dumps(individual_paper, indent=2)}"""
 
-          Paper to analyze:
-          $(cat paper_1.json)
+            # Write prompt to file
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+                f.write(prompt)
+                prompt_file = f.name
 
-    - name: Analyze Paper 2
-      id: analyze-2
-      if: needs.collect_data.outputs.papers-found >= 2
-      uses: 'google-github-actions/run-gemini-cli@v0'
-      with:
-        gemini_api_key: '${{ secrets.GEMINI_API_KEY }}'
-        prompt: |
-          Analyze this physics research paper and answer the following questions. Respond with a JSON object with the exact question text as keys.
+            try:
+                # Call Gemini API using gcloud (fallback approach)
+                result = subprocess.run([
+                    'curl', '-X', 'POST',
+                    f'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${{{{ secrets.GEMINI_API_KEY }}}}',
+                    '-H', 'Content-Type: application/json',
+                    '-d', json.dumps({
+                        "contents": [{
+                            "parts": [{"text": prompt}]
+                        }]
+                    })
+                ], capture_output=True, text=True, timeout=60)
 
-          Questions:
-          1. "What is the main physics phenomenon studied by this paper"
-          2. "Is this work related to dark matter searches? If yes, how?"
-          3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
-          4. "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper"
+                if result.returncode == 0:
+                    api_response = json.loads(result.stdout)
+                    if 'candidates' in api_response and len(api_response['candidates']) > 0:
+                        content = api_response['candidates'][0]['content']['parts'][0]['text']
+                        results.append(content.strip())
+                        print(f"Successfully analyzed paper {i+1}")
+                    else:
+                        fallback_result = {
+                            q: f"API Error: No candidates in response" for q in [
+                                "What is the main physics phenomenon studied by this paper",
+                                "Is this work related to dark matter searches? If yes, how?",
+                                "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?",
+                                "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper"
+                            ]
+                        }
+                        results.append(json.dumps(fallback_result))
+                        print(f"API error for paper {i+1}: No candidates")
+                else:
+                    fallback_result = {
+                        q: f"API Error: {result.stderr[:100]}" for q in [
+                            "What is the main physics phenomenon studied by this paper",
+                            "Is this work related to dark matter searches? If yes, how?",
+                            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?",
+                            "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper"
+                        ]
+                    }
+                    results.append(json.dumps(fallback_result))
+                    print(f"API call failed for paper {i+1}: {result.stderr}")
 
-          Response format:
-          {
-            "What is the main physics phenomenon studied by this paper": "Your answer here",
-            "Is this work related to dark matter searches? If yes, how?": "Your answer here",
-            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here",
-            "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper": "Your answer here"
-          }
+            except Exception as e:
+                print(f"Exception analyzing paper {i+1}: {e}")
+                fallback_result = {
+                    q: f"Error during analysis: {str(e)[:100]}" for q in [
+                        "What is the main physics phenomenon studied by this paper",
+                        "Is this work related to dark matter searches? If yes, how?",
+                        "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?",
+                        "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper"
+                    ]
+                }
+                results.append(json.dumps(fallback_result))
 
-          Paper to analyze:
-          $(cat paper_2.json)
-
-    - name: Analyze Paper 3
-      id: analyze-3
-      if: needs.collect_data.outputs.papers-found >= 3
-      uses: 'google-github-actions/run-gemini-cli@v0'
-      with:
-        gemini_api_key: '${{ secrets.GEMINI_API_KEY }}'
-        prompt: |
-          Analyze this physics research paper and answer the following questions. Respond with a JSON object with the exact question text as keys.
-
-          Questions:
-          1. "What is the main physics phenomenon studied by this paper"
-          2. "Is this work related to dark matter searches? If yes, how?"
-          3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
-          4. "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper"
-
-          Response format:
-          {
-            "What is the main physics phenomenon studied by this paper": "Your answer here",
-            "Is this work related to dark matter searches? If yes, how?": "Your answer here",
-            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here",
-            "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper": "Your answer here"
-          }
-
-          Paper to analyze:
-          $(cat paper_3.json)
-
-    - name: Analyze Paper 4
-      id: analyze-4
-      if: needs.collect_data.outputs.papers-found >= 4
-      uses: 'google-github-actions/run-gemini-cli@v0'
-      with:
-        gemini_api_key: '${{ secrets.GEMINI_API_KEY }}'
-        prompt: |
-          Analyze this physics research paper and answer the following questions. Respond with a JSON object with the exact question text as keys.
-
-          Questions:
-          1. "What is the main physics phenomenon studied by this paper"
-          2. "Is this work related to dark matter searches? If yes, how?"
-          3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
-          4. "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper"
-
-          Response format:
-          {
-            "What is the main physics phenomenon studied by this paper": "Your answer here",
-            "Is this work related to dark matter searches? If yes, how?": "Your answer here",
-            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here",
-            "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper": "Your answer here"
-          }
-
-          Paper to analyze:
-          $(cat paper_4.json)
-
-    - name: Analyze Paper 5
-      id: analyze-5
-      if: needs.collect_data.outputs.papers-found >= 5
-      uses: 'google-github-actions/run-gemini-cli@v0'
-      with:
-        gemini_api_key: '${{ secrets.GEMINI_API_KEY }}'
-        prompt: |
-          Analyze this physics research paper and answer the following questions. Respond with a JSON object with the exact question text as keys.
-
-          Questions:
-          1. "What is the main physics phenomenon studied by this paper"
-          2. "Is this work related to dark matter searches? If yes, how?"
-          3. "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?"
-          4. "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper"
-
-          Response format:
-          {
-            "What is the main physics phenomenon studied by this paper": "Your answer here",
-            "Is this work related to dark matter searches? If yes, how?": "Your answer here",
-            "Does this paper present experimental results? If yes, what is the name of the experimental apparatus?": "Your answer here",
-            "Does this paper use ML techniques for dark matter searches? And if yes, list the main ML techniques used in this paper": "Your answer here"
-          }
-
-          Paper to analyze:
-          $(cat paper_5.json)
-
-    - name: Combine individual results
-      run: |
-        # Combine all individual analysis results
-        python << 'EOF'
-        import json
-        import os
-
-        # Load papers count
-        with open('output/papers_data.json', 'r') as f:
-            papers_count = len(json.load(f))
-
-        print(f"Combining results for {papers_count} papers")
-
-        # Collect individual results
-        results = []
-        for i in range(1, papers_count + 1):
-            result_var = f"steps.analyze-{i}.outputs.summary"
-            print(f"Processing result {i}")
-            
-            # Get the result from environment or create error result
-            if i == 1:
-                result = '''${{ steps.analyze-1.outputs.summary }}'''
-            elif i == 2:
-                result = '''${{ steps.analyze-2.outputs.summary }}'''
-            elif i == 3:
-                result = '''${{ steps.analyze-3.outputs.summary }}'''
-            elif i == 4:
-                result = '''${{ steps.analyze-4.outputs.summary }}'''
-            elif i == 5:
-                result = '''${{ steps.analyze-5.outputs.summary }}'''
-            else:
-                result = '{"error": "No analysis performed"}'
-            
-            if not result or result.strip() == '':
-                result = '{"error": "Empty LLM response"}'
-            
-            results.append(result)
-            print(f"Added result {i}: {result[:100]}...")
+            finally:
+                # Clean up temporary files
+                try:
+                    os.unlink(paper_file)
+                    os.unlink(prompt_file)
+                except:
+                    pass
 
         # Save combined results
         with open('output/llm_results.txt', 'w') as f:
@@ -321,19 +236,17 @@ jobs:
       with:
         ssh-key: ${{secrets.PROD_BOT_KEY}}
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
       with:
-        python-version: '3.11'
-
-    - name: Install uv and dependencies
-      run: |
-        curl -LsSf https://astral.sh/uv/install.sh | sh
-        export PATH="$HOME/.local/bin:$PATH"
-        uv venv
-        source .venv/bin/activate
-        uv pip install -e .
+        version: "latest"
         
+    - name: Set up Python
+      run: uv python install 3.11
+        
+    - name: Install dependencies
+      run: |
+        uv sync --refresh
         # Install pandoc for robust markdown to HTML conversion
         sudo apt-get update
         sudo apt-get install -y pandoc
@@ -346,18 +259,12 @@ jobs:
 
     - name: Process results and generate markdown
       run: |
-        export PATH="$HOME/.local/bin:$PATH"
-        source .venv/bin/activate
-        
         # Run result processing phase
         uv run ciphr --mode process --output_dir output --output_filename hepex.md --verbose
 
     - name: Check for ML4DM papers and prepare Mattermost notification
       id: ml4dm-check
       run: |
-        export PATH="$HOME/.local/bin:$PATH"
-        source .venv/bin/activate
-        
         # Run ML4DM analysis
         uv run python << 'EOF'
         import json
@@ -417,9 +324,6 @@ jobs:
       env:
         MM_WEBHOOK_URL: ${{ secrets.MM_WEBHOOK_URL }}
       run: |
-        export PATH="$HOME/.local/bin:$PATH"
-        source .venv/bin/activate
-        
         uv run python << 'EOF'
         import json
         import os
@@ -460,9 +364,6 @@ jobs:
         WP_USERNAME: ${{ secrets.WP_USERNAME }}
         WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
       run: |
-        export PATH="$HOME/.local/bin:$PATH"
-        source .venv/bin/activate
-        
         # Check if WordPress credentials are available
         if [ -z "$WP_SITE_URL" ] || [ -z "$WP_USERNAME" ] || [ -z "$WP_APP_PASSWORD" ]; then
           echo "⚠️ WordPress credentials not configured - skipping WordPress publishing"
