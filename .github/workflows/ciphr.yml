@@ -123,11 +123,11 @@ jobs:
                 json.dump(individual_paper, f, indent=2)
                 paper_file = f.name
 
-            # Load questions dynamically from config
+            # Load all questions for CI analysis (table questions + ML4DM detection)
             import sys
             sys.path.append('.')
-            from ciphr.config.config import LLM_QUESTIONS
-            prompt_questions = LLM_QUESTIONS
+            from ciphr.config.config import get_ci_analysis_questions
+            prompt_questions = get_ci_analysis_questions()
             
             prompt_intro = "Analyze this physics research paper and answer the following questions. Respond with a JSON object with the exact question text as keys.\\n\\nQuestions:\\n"
             prompt_intro += f'1. "{prompt_questions[0]}"\\n'
