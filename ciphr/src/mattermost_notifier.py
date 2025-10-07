@@ -211,12 +211,10 @@ def _indicates_ml_usage(answer: str) -> bool:
     # Strong positive indicators
     positive_indicators = [
         "yes",
-        "machine learning",
+        "but",
         "neural network",
         "deep learning",
         "artificial intelligence",
-        "ml technique",
-        "algorithm",
         "classification",
         "regression",
         "clustering",
@@ -226,16 +224,18 @@ def _indicates_ml_usage(answer: str) -> bool:
         "convolutional",
         "transformer",
         "autoencoder",
+        "graph",
+        "decision tree",
     ]
 
     # Strong negative indicators
     negative_indicators = [
+        "no",
+        "does not use",
+        "does not mention",
         "no, this paper does not",
         "this paper does not use",
         "no machine learning",
-        "no ml techniques",
-        "traditional methods",
-        "conventional analysis",
     ]
 
     # Check for negative indicators first
