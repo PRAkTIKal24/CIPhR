@@ -8,3 +8,4 @@ output/*.pdf
 shell_scripts/
 .env
 run_with_keys.sh
+uv.lock
