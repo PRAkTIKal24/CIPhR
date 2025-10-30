@@ -11,9 +11,10 @@ name: CIPhR Daily Research Ingestion (Hybrid)
 # - WP_SITE_URL: WordPress site URL (optional, defaults to https://www.idmeu.org)
 
 on:
-  schedule:
-    # Runs every day at 7:00 AM UK time (7:00 UTC in winter, 8:00 AM in summer)
-    - cron: '0 7 * * *'
+  # Uncomment the below block to start automated runs everyday
+  # schedule:
+  #   # Runs every day at 7:00 AM UK time (7:00 UTC in winter, 8:00 AM in summer)
+  #   - cron: '0 7 * * *'
   workflow_dispatch: # Allows manual triggering
 
 jobs:
